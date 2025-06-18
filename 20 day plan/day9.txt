@@ -1,0 +1,163 @@
+
+📘 Day 9: Building the User Dashboard to View Screener and Watchlist History (Longform Learning Guide)
+
+==================================================================
+📌 Objective
+==================================================================
+Today, you will:
+- Create a personalized dashboard screen
+- Display all past Screener and Watchlist entries associated with the logged-in user
+- Allow deletion of saved entries
+- Improve structure by separating user-specific views from generic tables
+
+==================================================================
+🧠 Why Create a User Dashboard?
+==================================================================
+The dashboard serves as the user's private workspace where they:
+- Track strategies they’ve previously tested
+- Monitor active options they own
+- Save multiple custom screeners for different conditions
+
+==================================================================
+🗂️ Step 1: Create a New Dashboard Component
+==================================================================
+
+Create `src/components/Dashboard.js`:
+
+```javascript
+import React, { useEffect, useState } from 'react';
+import { getScreener, getWatchlist } from '../services/api';
+
+function Dashboard() {
+  const [screeners, setScreeners] = useState([]);
+  const [watchlist, setWatchlist] = useState([]);
+
+  useEffect(() => {
+    getScreener().then(res => setScreeners(res.data));
+    getWatchlist().then(res => setWatchlist(res.data));
+  }, []);
+
+  return (
+    <div>
+      <h2>📊 Your Dashboard</h2>
+
+      <section>
+        <h3>Screener History</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Label</th>
+              <th>Tickers</th>
+              <th>Strike %</th>
+              <th>Exp Days</th>
+              <th>Gain Days</th>
+              <th>Stock Move %</th>
+              <th>Allocation</th>
+            </tr>
+          </thead>
+          <tbody>
+            {screeners.map((item, i) => (
+              <tr key={i}>
+                <td>{item.label}</td>
+                <td>{item.tickers.join(", ")}</td>
+                <td>{(item.strike_pct * 100).toFixed(1)}%</td>
+                <td>{item.days_until_exp}</td>
+                <td>{item.days_to_gain}</td>
+                <td>{(item.stock_gain_pct * 100).toFixed(1)}%</td>
+                <td>${item.allocation.toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h3>Watchlist History</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Type</th>
+              <th>Strike</th>
+              <th>Expiration</th>
+              <th># Contracts</th>
+              <th>Avg Cost</th>
+              <th>Days to Gain</th>
+            </tr>
+          </thead>
+          <tbody>
+            {watchlist.map((w, i) => (
+              <tr key={i}>
+                <td>{w.ticker}</td>
+                <td>{w.option_type.toUpperCase()}</td>
+                <td>{w.strike}</td>
+                <td>{w.expiration}</td>
+                <td>{w.number_of_contracts}</td>
+                <td>${w.average_cost_per_contract.toFixed(2)}</td>
+                <td>{w.days_to_gain}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </div>
+  );
+}
+
+export default Dashboard;
+```
+
+==================================================================
+⚙️ Step 2: Add Delete Functionality (Optional Enhancement)
+==================================================================
+
+In `api.js`, add:
+
+```javascript
+export const deleteScreener = (id) => axios.delete(`${API_BASE_URL}/screener/${id}/`, headers);
+export const deleteWatchlist = (id) => axios.delete(`${API_BASE_URL}/watchlist/${id}/`, headers);
+```
+
+Update the tables in `Dashboard.js` to include delete buttons:
+
+```jsx
+<td>
+  <button onClick={() => deleteScreener(item.id).then(() => window.location.reload())}>
+    ❌
+  </button>
+</td>
+```
+
+==================================================================
+🛠️ Step 3: Secure Access (Bonus – Route Protection)
+==================================================================
+
+Only show Dashboard if the user is logged in. In `App.js`:
+
+```jsx
+{token ? <Dashboard /> : <LoginForm setToken={setToken} />}
+```
+
+Eventually, you’ll use React Router to restrict access further.
+
+==================================================================
+🧪 Step 4: Run and Verify
+==================================================================
+
+1. Log in via your LoginForm
+2. Navigate to the Dashboard
+3. Confirm you see only entries tied to the logged-in user
+4. Try deleting an entry and see it disappear
+5. Reload the page and confirm persistence
+
+==================================================================
+✅ What You’ve Accomplished
+==================================================================
+
+✔ Built a full-screen dashboard showing personalized Screener & Watchlist history  
+✔ Hooked into Django endpoints to fetch user-specific entries  
+✔ (Optional) Enabled deletion of saved entries  
+✔ Handled protected data display based on login session  
+✔ Prepared UI structure for saved dashboards, plan tiers, and ROI analysis
+
+Next up: Day 10 – setting up Stripe for subscriptions and limiting access to paid features.

@@ -1,0 +1,153 @@
+
+📘 Day 21: Backend Unit Testing for Core Functions and Models (Longform Learning Guide)
+
+==================================================================
+📌 Objective
+==================================================================
+Today, you will:
+- Set up a Django unit testing framework using `pytest` and `pytest-django`
+- Write unit tests for core business logic:
+    - ROI simulation
+    - Breakeven logic
+    - Referral crediting
+- Learn best practices for organizing and running your backend tests
+
+==================================================================
+🧠 Why Testing Matters for Your Options Platform
+==================================================================
+- Financial calculations must be accurate and trustworthy
+- ROI, breakeven, and tagging logic are foundational
+- Testing prevents future changes from silently breaking functionality
+- High-quality code is easier to maintain, scale, and debug
+
+==================================================================
+🛠️ Step 1: Install Pytest and Plugins
+==================================================================
+
+Install packages:
+
+```bash
+pip install pytest pytest-django pytest-cov
+```
+
+Create a `pytest.ini` in your Django project root:
+
+```ini
+[pytest]
+DJANGO_SETTINGS_MODULE = yourproject.settings
+python_files = tests.py test_*.py *_tests.py
+```
+
+==================================================================
+🧱 Step 2: Create Test Folder Structure
+==================================================================
+
+Organize like this:
+
+```
+/yourapp
+  /tests
+    test_utils.py
+    test_models.py
+    test_views.py
+```
+
+In `yourapp/tests/__init__.py`, leave empty.
+
+==================================================================
+📈 Step 3: Unit Test ROI Logic
+==================================================================
+
+In `test_utils.py`:
+
+```python
+import pytest
+from yourapp.utils import simulate_roi_over_time
+
+def test_simulate_roi_call_option():
+    config = {
+        "option_type": "call",
+        "strike": 100,
+        "average_cost_per_contract": 5.00
+    }
+    prices = [98, 100, 105, 110]
+    results = simulate_roi_over_time(config, prices)
+
+    assert len(results) == 4
+    assert results[-1]["roi"] > 90  # intrinsic = 10, net = +5 / 5 = 100% ROI
+    assert results[-1]["stock_price"] == 110
+
+def test_simulate_roi_put_option():
+    config = {
+        "option_type": "put",
+        "strike": 100,
+        "average_cost_per_contract": 4.00
+    }
+    prices = [102, 100, 95, 90]
+    results = simulate_roi_over_time(config, prices)
+
+    assert results[-1]["roi"] > 120
+```
+
+==================================================================
+💼 Step 4: Test Model Logic (Referral Bonus)
+==================================================================
+
+In `test_models.py`:
+
+```python
+import pytest
+from django.contrib.auth.models import User
+from yourapp.models import UserProfile
+
+@pytest.mark.django_db
+def test_referral_code_is_created():
+    user = User.objects.create(username="referrer")
+    profile = user.userprofile
+    assert profile.referral_code is not None
+    assert len(profile.referral_code) >= 6
+
+@pytest.mark.django_db
+def test_referral_bonus_credited():
+    referrer = User.objects.create(username="referrer")
+    new_user = User.objects.create(username="invitee")
+    profile = new_user.userprofile
+    profile.referred_by = referrer
+    profile.save()
+
+    profile.credits += 5.00
+    referrer.userprofile.credits += 5.00
+    profile.save()
+    referrer.userprofile.save()
+
+    assert profile.credits == 5.00
+    assert referrer.userprofile.credits == 5.00
+```
+
+==================================================================
+🧪 Step 5: Run the Tests
+==================================================================
+
+To run all tests:
+
+```bash
+pytest
+```
+
+With coverage report:
+
+```bash
+pytest --cov=yourapp
+```
+
+==================================================================
+✅ What You’ve Accomplished
+==================================================================
+
+✔ Installed and configured `pytest` with Django  
+✔ Wrote unit tests for ROI logic in `utils.py`  
+✔ Wrote tests for referral credit logic in `models.py`  
+✔ Validated the business logic that powers your Screener, Watchlist, and user rewards  
+✔ Created a foundation to expand test coverage as your app grows
+
+Next up: Day 22 – API & integration testing to validate endpoint behavior from request to response!

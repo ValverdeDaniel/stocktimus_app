@@ -1,0 +1,196 @@
+
+📘 Day 8: Implementing User Authentication with Django and React (Longform Learning Guide)
+
+==================================================================
+📌 Objective
+==================================================================
+Today, you will:
+- Set up Django Allauth for authentication
+- Create API endpoints for login, logout, and registration
+- Configure Django REST Framework to use token-based authentication
+- Add basic React UI for login and logout
+- Secure your Screener and Watchlist actions with user-level filtering
+
+==================================================================
+🧠 Why User Authentication?
+==================================================================
+Authentication allows users to:
+- Save their own Screener and Watchlist inputs
+- Access personalized data only
+- Eventually subscribe to paid tiers securely
+
+==================================================================
+📦 Step 1: Install Required Django Packages
+==================================================================
+
+Install the authentication packages:
+
+```bash
+pip install djangorestframework dj-rest-auth django-allauth
+```
+
+==================================================================
+🧱 Step 2: Update Django Settings
+==================================================================
+
+In `settings.py`, update your apps and authentication backends:
+
+```python
+INSTALLED_APPS = [
+    ...
+    'rest_framework',
+    'rest_framework.authtoken',
+    'dj_rest_auth',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'dj_rest_auth.registration',
+    'corsheaders',
+]
+
+AUTHENTICATION_BACKENDS = (
+    'django.contrib.auth.backends.ModelBackend',
+)
+
+SITE_ID = 1  # Required by allauth
+REST_USE_JWT = False
+
+# CORS
+CORS_ALLOW_ALL_ORIGINS = True  # Dev only
+```
+
+Migrate:
+
+```bash
+python manage.py migrate
+```
+
+==================================================================
+🌐 Step 3: Add Auth URLs to your project
+==================================================================
+
+In your main `urls.py`:
+
+```python
+from django.urls import path, include
+
+urlpatterns = [
+    path('api/auth/', include('dj_rest_auth.urls')),  # login/logout
+    path('api/auth/registration/', include('dj_rest_auth.registration.urls')),  # signup
+    ...
+]
+```
+
+==================================================================
+📁 Step 4: Test Auth Endpoints in Postman or Browser
+==================================================================
+
+Test the following POST endpoints:
+- `POST /api/auth/login/` → `{ "username": "user", "password": "pass" }`
+- `POST /api/auth/logout/`
+- `POST /api/auth/registration/` → `{ "username": "user", "email": "...", "password1": "...", "password2": "..." }`
+
+They return a token you can store in the frontend for authorization.
+
+==================================================================
+🧠 Step 5: Associate Screener/Watchlist Entries with Authenticated Users
+==================================================================
+
+In your models (`models.py`):
+
+```python
+from django.contrib.auth.models import User
+
+class ScreenerInput(models.Model):
+    ...
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+```
+
+Same for WatchlistEntry.
+
+Update serializers (`serializers.py`) to make user read-only:
+
+```python
+user = serializers.ReadOnlyField(source='user.username')
+```
+
+Update views (`views.py`) to override perform_create:
+
+```python
+def perform_create(self, serializer):
+    serializer.save(user=self.request.user)
+
+def get_queryset(self):
+    return self.queryset.filter(user=self.request.user)
+```
+
+==================================================================
+⚛️ Step 6: Create Login UI in React
+==================================================================
+
+Create `LoginForm.js`:
+
+```javascript
+import React, { useState } from 'react';
+import axios from 'axios';
+
+const API = 'http://localhost:8000/api/auth/login/';
+
+function LoginForm({ setToken }) {
+  const [credentials, setCredentials] = useState({ username: '', password: '' });
+
+  const login = async (e) => {
+    e.preventDefault();
+    const res = await axios.post(API, credentials);
+    const token = res.data.key;
+    localStorage.setItem('token', token);
+    setToken(token);
+  };
+
+  return (
+    <form onSubmit={login}>
+      <h3>Login</h3>
+      <input type="text" placeholder="Username" onChange={(e) => setCredentials({...credentials, username: e.target.value})} />
+      <input type="password" placeholder="Password" onChange={(e) => setCredentials({...credentials, password: e.target.value})} />
+      <button type="submit">Login</button>
+    </form>
+  );
+}
+
+export default LoginForm;
+```
+
+==================================================================
+🔐 Step 7: Use Token for Authenticated Requests
+==================================================================
+
+Update `api.js`:
+
+```javascript
+import axios from 'axios';
+
+const API_BASE_URL = "http://localhost:8000/api";
+
+const token = localStorage.getItem("token");
+
+const headers = {
+  headers: { Authorization: `Token ${token}` }
+};
+
+export const getScreener = () => axios.get(`${API_BASE_URL}/screener/`, headers);
+export const createScreener = (data) => axios.post(`${API_BASE_URL}/screener/`, data, headers);
+export const getWatchlist = () => axios.get(`${API_BASE_URL}/watchlist/`, headers);
+export const createWatchlist = (data) => axios.post(`${API_BASE_URL}/watchlist/`, data, headers);
+```
+
+==================================================================
+✅ What You’ve Accomplished
+==================================================================
+
+✔ Set up Django Allauth and REST login/registration/logout  
+✔ Secured Screener and Watchlist queries by user  
+✔ Built login form in React and stored token  
+✔ Used token in all future requests  
+✔ Prepared foundation for Stripe integration and saved dashboards
+
+Next up: Day 9 – Building the user dashboard and displaying saved screener/watchlist history.

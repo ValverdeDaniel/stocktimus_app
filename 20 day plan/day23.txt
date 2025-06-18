@@ -1,0 +1,122 @@
+
+📘 Day 23: React Component Testing with Jest and React Testing Library (Optional Frontend Testing)
+
+==================================================================
+📌 Objective
+==================================================================
+Today, you will:
+- Set up a testing environment for your React frontend
+- Use Jest + React Testing Library to test form inputs, state changes, and component rendering
+- Write snapshot tests for visual consistency
+- Gain confidence in UI functionality and user flow
+
+==================================================================
+🧠 Why React Testing Helps
+==================================================================
+- Prevents regressions in visual output and form logic
+- Validates user flows like entering watchlist contracts or running screeners
+- Provides documentation for how components should behave
+- Enables confidence before major UI changes
+
+==================================================================
+🛠️ Step 1: Install Testing Tools
+==================================================================
+
+If you're using Create React App (CRA), it’s mostly ready:
+
+```bash
+npm install --save-dev @testing-library/react @testing-library/jest-dom
+```
+
+Ensure you have `jest` configured in `package.json` or use CRA’s default setup.
+
+==================================================================
+🧪 Step 2: Test Basic Form Functionality
+==================================================================
+
+Example: Testing Screener input form
+
+```jsx
+// ScreenerForm.test.js
+import { render, screen, fireEvent } from "@testing-library/react";
+import ScreenerForm from "./ScreenerForm";
+
+test("renders form and accepts input", () => {
+  render(<ScreenerForm />);
+
+  const tickerInput = screen.getByLabelText(/tickers/i);
+  fireEvent.change(tickerInput, { target: { value: "AAPL,MSFT" } });
+  expect(tickerInput.value).toBe("AAPL,MSFT");
+
+  const submitButton = screen.getByText(/run screener/i);
+  expect(submitButton).toBeInTheDocument();
+});
+```
+
+==================================================================
+📉 Step 3: Test ROI Chart Rendering
+==================================================================
+
+Mock chart data and test that the chart renders:
+
+```jsx
+import { render } from "@testing-library/react";
+import ROIChart from "./ROIChart";
+
+test("renders ROI chart with data", () => {
+  const data = [
+    { day: 0, roi: 0, stock_price: 100 },
+    { day: 1, roi: 10, stock_price: 105 },
+    { day: 2, roi: 15, stock_price: 110 },
+  ];
+
+  const { container } = render(<ROIChart data={data} />);
+  expect(container.querySelector("svg")).toBeInTheDocument();
+});
+```
+
+==================================================================
+📸 Step 4: Optional Snapshot Testing
+==================================================================
+
+Snapshot tests let you compare current output to past renders.
+
+```jsx
+import { render } from "@testing-library/react";
+import ROIChart from "./ROIChart";
+
+test("matches snapshot", () => {
+  const data = [{ day: 0, roi: 0, stock_price: 100 }];
+  const { asFragment } = render(<ROIChart data={data} />);
+  expect(asFragment()).toMatchSnapshot();
+});
+```
+
+This will generate a `.snap` file and warn you if something changes unexpectedly.
+
+==================================================================
+🚦 Step 5: Run the Tests
+==================================================================
+
+```bash
+npm test
+```
+
+Use `a` to run all, or `p` to filter by filename.
+
+==================================================================
+✅ What You’ve Accomplished
+==================================================================
+
+✔ Installed and configured frontend testing tools  
+✔ Validated form input and user interaction behavior  
+✔ Confirmed chart renders with sample data  
+✔ Used snapshot testing to prevent visual regressions  
+✔ Now able to confidently change frontend logic without fear of breakage
+
+Congratulations — you’ve now tested both frontend and backend!
+
+You’ve completed Day 23 and your 3-day testing expansion! Let me know if you’d like to:
+- Add CI integration
+- Begin marketing outreach
+- Add AI-driven smart contract suggestions

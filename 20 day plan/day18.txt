@@ -1,0 +1,163 @@
+
+📘 Day 18: Implementing Referral Tracking and Discount Incentives (Longform Learning Guide)
+
+==================================================================
+📌 Objective
+==================================================================
+Today, you will:
+- Add referral codes for users
+- Track who invited whom
+- Offer discounts or account credits for successful referrals
+- Enable users to share referral links
+- Lay groundwork for viral growth loops
+
+==================================================================
+🧠 Why Referral Incentives?
+==================================================================
+Referrals:
+- Lower your customer acquisition cost (CAC)
+- Build trust through word of mouth
+- Increase retention and reward loyal users
+- Help create a community around your product
+
+==================================================================
+🧱 Step 1: Extend User Profile with Referral Code
+==================================================================
+
+If you're using a custom user model or profile extension:
+
+In `models.py`:
+
+```python
+import uuid
+from django.contrib.auth.models import User
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    referral_code = models.CharField(max_length=20, unique=True, blank=True)
+    referred_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='referrals')
+    credits = models.DecimalField(max_digits=6, decimal_places=2, default=0.00)
+
+    def save(self, *args, **kwargs):
+        if not self.referral_code:
+            self.referral_code = str(uuid.uuid4())[:8]
+        super().save(*args, **kwargs)
+```
+
+In `signals.py`:
+
+```python
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.contrib.auth.models import User
+from .models import UserProfile
+
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    if created:
+        UserProfile.objects.create(user=instance)
+```
+
+In `apps.py`, register your signals:
+
+```python
+def ready(self):
+    import yourapp.signals
+```
+
+==================================================================
+🌐 Step 2: Accept Referral Code on Signup
+==================================================================
+
+Add a query param like `?ref=abc123` to your signup page URL.
+
+In the signup React page:
+
+```jsx
+const queryParams = new URLSearchParams(window.location.search);
+const referralCode = queryParams.get("ref") || null;
+```
+
+Pass it along during signup:
+
+```javascript
+axios.post("/api/signup/", {
+  username, email, password, referral_code: referralCode
+});
+```
+
+==================================================================
+📦 Step 3: Handle Referral Logic in Signup View
+==================================================================
+
+In Django `views.py`:
+
+```python
+from .models import UserProfile
+
+def register(request):
+    ...
+    referral_code = request.data.get("referral_code")
+    user = User.objects.create_user(...)
+    if referral_code:
+        try:
+            referrer = UserProfile.objects.get(referral_code=referral_code).user
+            profile = user.userprofile
+            profile.referred_by = referrer
+            profile.save()
+
+            # Give bonus to both parties
+            referrer.userprofile.credits += 5.00
+            referrer.userprofile.save()
+            profile.credits += 5.00
+            profile.save()
+        except UserProfile.DoesNotExist:
+            pass
+```
+
+==================================================================
+💸 Step 4: Show Credit Balance in Dashboard
+==================================================================
+
+In your `/api/dashboard-summary/` view, include:
+
+```python
+"profile_credits": user.userprofile.credits,
+"referral_code": user.userprofile.referral_code,
+```
+
+In React:
+
+```jsx
+<p>Referral Code: {summary.referral_code}</p>
+<p>💰 Credits: ${summary.profile_credits.toFixed(2)}</p>
+```
+
+==================================================================
+🔗 Step 5: Create Shareable Referral Links
+==================================================================
+
+Allow users to share links like:
+
+```
+https://yourapp.com/signup?ref=abc123
+```
+
+In React:
+
+```jsx
+<input value={`https://yourapp.com/signup?ref=${summary.referral_code}`} readOnly />
+<button onClick={() => navigator.clipboard.writeText(referralURL)}>Copy Link</button>
+```
+
+==================================================================
+✅ What You’ve Accomplished
+==================================================================
+
+✔ Added referral tracking tied to user accounts  
+✔ Rewarded both inviter and invitee with credits  
+✔ Enabled signup via referral links  
+✔ Displayed referral stats and credits in dashboard  
+✔ Opened the door to social sharing, affiliate rewards, or viral loops
+
+Next up: Day 19 – advanced ROI analytics and ROI over time charting per strategy!

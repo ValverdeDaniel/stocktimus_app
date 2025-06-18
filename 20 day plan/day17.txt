@@ -1,0 +1,181 @@
+
+📘 Day 17: Implementing Daily Email Summaries and ROI Alerts for Premium Users (Longform Learning Guide)
+
+==================================================================
+📌 Objective
+==================================================================
+Today, you will:
+- Set up automated daily email summaries for premium users
+- Include personalized insights such as ROI, contract performance, and strategy highlights
+- Use Celery + Redis to schedule background tasks
+- Build an alerting system for major ROI events (e.g., “+50% in 5 days”)
+
+==================================================================
+🧠 Why Email Summaries?
+==================================================================
+Email is a direct, high-retention channel to:
+- Keep users engaged daily
+- Help them track performance without logging in
+- Highlight wins and nudge them to explore more
+
+This is particularly valuable for premium subscribers.
+
+==================================================================
+⚙️ Step 1: Configure Email in Django
+==================================================================
+
+In `settings.py`:
+
+```python
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'yourapp@example.com'
+EMAIL_HOST_PASSWORD = 'yourpassword'
+DEFAULT_FROM_EMAIL = 'Options App <yourapp@example.com>'
+```
+
+You can also use services like SendGrid or Mailgun in production.
+
+==================================================================
+🧱 Step 2: Add Celery for Scheduling
+==================================================================
+
+Install Celery:
+
+```bash
+pip install celery redis
+```
+
+Create `celery.py` in your Django project root:
+
+```python
+import os
+from celery import Celery
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'yourproject.settings')
+
+app = Celery('yourproject')
+app.config_from_object('django.conf:settings', namespace='CELERY')
+app.autodiscover_tasks()
+```
+
+In `__init__.py` (same folder as `settings.py`):
+
+```python
+from .celery import app as celery_app
+__all__ = ('celery_app',)
+```
+
+In `settings.py`:
+
+```python
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+```
+
+Start Redis and Celery in separate terminals:
+
+```bash
+redis-server
+celery -A yourproject worker -l info
+```
+
+==================================================================
+📨 Step 3: Create the Email Summary Task
+==================================================================
+
+In `tasks.py` of your app:
+
+```python
+from celery import shared_task
+from django.core.mail import send_mail
+from .models import User, Subscription
+from .models import SavedFavorite
+
+@shared_task
+def send_daily_summary_emails():
+    users = User.objects.filter(subscription__is_active=True)
+
+    for user in users:
+        favorites = SavedFavorite.objects.filter(user=user)
+        fav_count = favorites.count()
+
+        message = f"Hi {user.username},
+
+"
+        message += f"You currently have {fav_count} saved setups.
+"
+
+        for fav in favorites[:5]:  # limit output
+            message += f"- {fav.label}: {fav.config_type}, Tags: {fav.tags or 'None'}
+"
+
+        message += "
+Visit your dashboard to review or adjust your setups.
+"
+        message += "https://yourapp.com/dashboard"
+
+        send_mail(
+            subject="📈 Your Daily Options Summary",
+            message=message,
+            from_email=None,
+            recipient_list=[user.email]
+        )
+```
+
+==================================================================
+🕓 Step 4: Schedule as Periodic Task
+==================================================================
+
+Install `django-celery-beat`:
+
+```bash
+pip install django-celery-beat
+```
+
+Add to `INSTALLED_APPS` and run:
+
+```bash
+python manage.py migrate
+```
+
+In `admin.py`:
+
+```python
+from django_celery_beat.models import PeriodicTask, IntervalSchedule
+admin.site.register(PeriodicTask)
+admin.site.register(IntervalSchedule)
+```
+
+Then in the Django Admin:
+- Create Interval (1 day)
+- Create PeriodicTask: name = "Daily Summary Emails", task = `yourapp.tasks.send_daily_summary_emails`
+
+==================================================================
+🚨 Step 5: Add ROI Alert Emails (Optional)
+==================================================================
+
+In your strategy evaluation logic, trigger a one-time alert if a user’s saved setup reaches a threshold:
+
+```python
+if simulated_roi > 50 and not already_alerted:
+    send_mail(
+        subject=f"🚨 {fav.label} Surged +{simulated_roi}%",
+        message="Your strategy may be peaking. Review it now.",
+        from_email=None,
+        recipient_list=[user.email]
+    )
+```
+
+==================================================================
+✅ What You’ve Accomplished
+==================================================================
+
+✔ Set up Django to send email using SMTP  
+✔ Installed and configured Celery for scheduled background tasks  
+✔ Created and scheduled a task to email daily user summaries  
+✔ Personalized summaries with strategy insights and links  
+✔ Built ROI alerts to highlight outstanding setups
+
+Next up: Day 18 – implementing referral tracking and discount incentives for premium growth!

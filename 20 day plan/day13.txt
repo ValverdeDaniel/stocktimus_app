@@ -1,0 +1,178 @@
+
+📘 Day 13: Saving Users’ Favorite Stock Setups and Custom Queries (Longform Learning Guide)
+
+==================================================================
+📌 Objective
+==================================================================
+Today, you will:
+- Allow users to save their custom Screener or Watchlist queries
+- Build database models for saved “Favorite Strategies”
+- Create Django API endpoints for saving, listing, and deleting favorites
+- Add save buttons and a favorites view in the React frontend
+
+==================================================================
+🧠 Why Save Favorite Setups?
+==================================================================
+Users may want to:
+- Save setups they regularly use (e.g., “Tech Calls 30D OTM”)
+- Reuse the same parameters without retyping
+- Label and categorize different strategies
+- Quickly access Watchlist presets for common contracts
+
+==================================================================
+🧱 Step 1: Create a Model for SavedFavorites
+==================================================================
+
+In `models.py`:
+
+```python
+from django.contrib.auth.models import User
+
+class SavedFavorite(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    label = models.CharField(max_length=100)
+    config_type = models.CharField(max_length=20, choices=(("screener", "Screener"), ("watchlist", "Watchlist")))
+    config_data = models.JSONField()  # Stores the actual parameter set
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.label} ({self.user.username})"
+```
+
+Migrate:
+
+```bash
+python manage.py makemigrations
+python manage.py migrate
+```
+
+==================================================================
+📦 Step 2: Add Serializer
+==================================================================
+
+In `serializers.py`:
+
+```python
+from rest_framework import serializers
+from .models import SavedFavorite
+
+class SavedFavoriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SavedFavorite
+        fields = '__all__'
+        read_only_fields = ['user', 'created_at']
+```
+
+==================================================================
+🛠️ Step 3: Create API ViewSet
+==================================================================
+
+In `views.py`:
+
+```python
+from rest_framework import viewsets
+from .models import SavedFavorite
+from .serializers import SavedFavoriteSerializer
+from rest_framework.permissions import IsAuthenticated
+
+class SavedFavoriteViewSet(viewsets.ModelViewSet):
+    serializer_class = SavedFavoriteSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return SavedFavorite.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+```
+
+==================================================================
+🔌 Step 4: Add Routes to Django `urls.py`
+==================================================================
+
+In `urls.py`:
+
+```python
+from rest_framework.routers import DefaultRouter
+from .views import SavedFavoriteViewSet
+
+router = DefaultRouter()
+router.register(r'saved-favorites', SavedFavoriteViewSet, basename='saved-favorite')
+
+urlpatterns += router.urls
+```
+
+==================================================================
+⚛️ Step 5: Add "Save This Setup" Button in React
+==================================================================
+
+In `api.js`:
+
+```javascript
+export const saveFavorite = (data) =>
+  axios.post(`${API_BASE_URL}/saved-favorites/`, data, headers);
+```
+
+In your Screener or Watchlist component:
+
+```jsx
+const handleSaveFavorite = () => {
+  const payload = {
+    label: "Short-Term Tech Plays",
+    config_type: "screener",
+    config_data: screenerParams,  // current state object
+  };
+  saveFavorite(payload).then(() => alert("Saved!"));
+};
+
+<button onClick={handleSaveFavorite}>💾 Save Setup</button>
+```
+
+==================================================================
+📄 Step 6: Display User’s Saved Setups
+==================================================================
+
+In React `SavedFavorites.js`:
+
+```jsx
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+function SavedFavorites() {
+  const [favorites, setFavorites] = useState([]);
+
+  useEffect(() => {
+    axios.get('/api/saved-favorites/', {
+      headers: { Authorization: `Token ${localStorage.getItem("token")}` }
+    }).then(res => setFavorites(res.data));
+  }, []);
+
+  return (
+    <div>
+      <h3>⭐ Saved Strategies</h3>
+      <ul>
+        {favorites.map(fav => (
+          <li key={fav.id}>
+            <strong>{fav.label}</strong> - {fav.config_type} <br />
+            Params: {JSON.stringify(fav.config_data)}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export default SavedFavorites;
+```
+
+==================================================================
+✅ What You’ve Accomplished
+==================================================================
+
+✔ Designed a flexible data model for storing user-defined setups  
+✔ Created endpoints to save, view, and manage strategy templates  
+✔ Integrated save/load UI into React  
+✔ Allowed users to label and tag their favorite screener/watchlist configurations  
+✔ Set the foundation for one-click loading, comparisons, and preset sharing
+
+Next up: Day 14 – adding filters, tags, and visual sorting tools to manage saved strategies like a pro!

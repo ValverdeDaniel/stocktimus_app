@@ -1,0 +1,153 @@
+
+📘 Day 16: Building a Mini Dashboard for Performance Summaries and Premium ROI Analytics (Longform Learning Guide)
+
+==================================================================
+📌 Objective
+==================================================================
+Today, you will:
+- Create a user-specific dashboard page
+- Show saved strategy counts and summaries
+- Calculate simulated ROI performance from saved setups
+- Visually differentiate premium vs. free user metrics
+
+==================================================================
+🧠 Why a Dashboard?
+==================================================================
+Dashboards:
+- Give users quick insights into their usage
+- Highlight value of premium features (e.g., ROI charting)
+- Encourage retention and provide analytical context
+- Help position your platform as a research-grade tool
+
+==================================================================
+🧱 Step 1: Build Backend Endpoint for User Summary
+==================================================================
+
+In `views.py`:
+
+```python
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from .models import SavedFavorite
+
+class UserDashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        favorites = SavedFavorite.objects.filter(user=user)
+
+        screener_count = favorites.filter(config_type="screener").count()
+        watchlist_count = favorites.filter(config_type="watchlist").count()
+
+        avg_days_gain = favorites.aggregate(models.Avg('config_data__days_to_gain'))['config_data__days_to_gain__avg'] or 0
+
+        return Response({
+            "username": user.username,
+            "is_premium": user.subscription.is_active,
+            "screener_count": screener_count,
+            "watchlist_count": watchlist_count,
+            "avg_days_to_gain": round(avg_days_gain, 1),
+        })
+```
+
+Add route:
+
+```python
+path('api/dashboard-summary/', UserDashboardView.as_view(), name='user-dashboard'),
+```
+
+==================================================================
+⚛️ Step 2: Build React Dashboard Component
+==================================================================
+
+In `Dashboard.js`:
+
+```jsx
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+function Dashboard() {
+  const [summary, setSummary] = useState(null);
+
+  useEffect(() => {
+    axios.get('/api/dashboard-summary/', {
+      headers: { Authorization: `Token ${localStorage.getItem("token")}` }
+    }).then(res => setSummary(res.data));
+  }, []);
+
+  if (!summary) return <p>Loading...</p>;
+
+  return (
+    <div>
+      <h2>📊 {summary.username}'s Dashboard</h2>
+      <p><strong>Premium:</strong> {summary.is_premium ? "✅ Yes" : "❌ No"}</p>
+      <p><strong>Screener Setups:</strong> {summary.screener_count}</p>
+      <p><strong>Watchlist Setups:</strong> {summary.watchlist_count}</p>
+      <p><strong>Avg Days to Gain:</strong> {summary.avg_days_to_gain}</p>
+    </div>
+  );
+}
+
+export default Dashboard;
+```
+
+==================================================================
+📈 Step 3: Add ROI Chart for Premium Users
+==================================================================
+
+Install `recharts`:
+
+```bash
+npm install recharts
+```
+
+Optional component:
+
+```jsx
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+
+const dummyROIData = [
+  { day: 1, roi: 5 },
+  { day: 10, roi: 10 },
+  { day: 20, roi: 18 },
+];
+
+...
+
+{summary.is_premium && (
+  <div>
+    <h3>📈 ROI Simulation</h3>
+    <LineChart width={400} height={200} data={dummyROIData}>
+      <XAxis dataKey="day" />
+      <YAxis />
+      <Tooltip />
+      <CartesianGrid stroke="#eee" strokeDasharray="5 5" />
+      <Line type="monotone" dataKey="roi" stroke="#8884d8" />
+    </LineChart>
+  </div>
+)}
+```
+
+==================================================================
+🧪 Step 4: Route It and Protect with Auth
+==================================================================
+
+In your main routes:
+
+```jsx
+<Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
+```
+
+==================================================================
+✅ What You’ve Accomplished
+==================================================================
+
+✔ Created a dashboard for each user  
+✔ Summarized their tool usage (e.g., strategy counts)  
+✔ Added a premium-only ROI analytics visual  
+✔ Differentiated free vs. paid user experience  
+✔ Laid the groundwork for a high-retention analytics experience
+
+Next up: Day 17 – implementing daily email summaries and ROI alerts for premium users!

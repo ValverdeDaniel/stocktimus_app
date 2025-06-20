@@ -1,0 +1,36 @@
+============================================================
+🔧 How to Activate Your "stocktimus" Virtual Environment
+============================================================
+
+📍 Option 1: Using Anaconda Prompt (Recommended)
+------------------------------------------------------------
+
+1. Open Anaconda Prompt
+
+2. Navigate to your project folder (adjust path if needed):
+   cd C:\Users\Daniel2\OneDrive\Desktop\devprojects\shadowstocks\stocktimus
+
+3. Activate the virtual environment:
+   stocktimus\Scripts\activate
+
+✅ You should now see:
+   (stocktimus) C:\Users\Daniel2\OneDrive\Desktop\devprojects\shadowstocks\stocktimus>
+
+
+
+------------------------------------------------------------
+
+✅ Test the environment:
+------------------------------------------------------------
+Run this command:
+   python manage.py runserver
+
+If successful, you’ll see a message like:
+   "Starting development server at http://127.0.0.1:8000/"
+
+You're now ready to build!
+============================================================
+
+
+pgadmin root password; 3*P*******
+stocktimus database pw: 4*M*****

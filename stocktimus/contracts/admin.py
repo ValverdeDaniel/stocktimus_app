@@ -1,3 +1,6 @@
 from django.contrib import admin
+from .models import OptionContract, ScreenerInput, WatchlistEntry
 
-# Register your models here.
+admin.site.register(OptionContract)
+admin.site.register(ScreenerInput)
+admin.site.register(WatchlistEntry)

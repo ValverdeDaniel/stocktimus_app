@@ -37,7 +37,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    'contracts',
+    'rest_framework', #djangorestframework for api building allows frontend (React) to talk to django backend using json
+    'contracts', # your custom app
+    'corsheaders', 
 ]
 
 MIDDLEWARE = [
@@ -48,6 +50,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 ROOT_URLCONF = "backend.urls"
@@ -119,4 +122,13 @@ STATIC_URL = "static/"
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',  # 👈 Dev mode: open access
+    ]
+}
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# CORS setup for local frontend development
+CORS_ALLOW_ALL_ORIGINS = True  # Development only

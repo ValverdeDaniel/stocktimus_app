@@ -17,6 +17,21 @@ from .serializers import (
 )
 from .utils import run_multiple_analyses  # 👈 your screener logic
 
+import math  # 👈 needed for NaN/infinity checking
+
+# --- Float Cleaning Utility ---
+def clean_floats(obj):
+    if isinstance(obj, dict):
+        return {k: clean_floats(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_floats(i) for i in obj]
+    elif isinstance(obj, float):
+        if math.isinf(obj) or math.isnan(obj):
+            return None  # You can customize this to "N/A" or 0 if needed
+        return obj
+    else:
+        return obj
+
 # --- Generic Model-Based Views ---
 class OptionContractList(generics.ListCreateAPIView):
     queryset = OptionContract.objects.all()
@@ -40,13 +55,11 @@ class SavedScreenerParameterListCreateAPIView(generics.ListCreateAPIView):
         else:
             serializer.save(user=None)  # ✅ explicitly set to None
 
-
 class SavedScreenerParameterDeleteAPIView(generics.DestroyAPIView):
     serializer_class = SavedScreenerParameterSerializer
-    # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return SavedScreenerParameter.objects.all()  # 👈 same here
+        return SavedScreenerParameter.objects.all()
 
 class RunScreenerAPIView(APIView):
     def post(self, request):
@@ -55,12 +68,13 @@ class RunScreenerAPIView(APIView):
             if not param_sets:
                 return Response({"error": "No param_sets provided."}, status=status.HTTP_400_BAD_REQUEST)
 
-            print("🚀 Incoming param_sets:", param_sets)  # 👈 Add this for debugging
+            print("🚀 Incoming param_sets:", param_sets)
 
             df = run_multiple_analyses(param_sets)
+            cleaned_data = clean_floats(df.to_dict(orient="records"))
 
-            return Response(df.to_dict(orient="records"), status=status.HTTP_200_OK)
+            return Response(cleaned_data, status=status.HTTP_200_OK)
         except Exception as e:
             import traceback
-            traceback.print_exc()  # 👈 Print full traceback in terminal
+            traceback.print_exc()
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

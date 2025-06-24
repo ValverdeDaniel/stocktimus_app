@@ -1,6 +1,10 @@
+// ✅ ScreenerResults.js (main container)
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { runScreenerBackend } from '../services/api';
+import ScreenerScenarioForm from './ScreenerScenarioForm';
+import ScreenerSavedParams from './ScreenerSavedParams';
+import ScreenerResultsTable from './ScreenerResultsTable';
 
 function ScreenerResults() {
   const [paramSets, setParamSets] = useState([
@@ -12,35 +16,56 @@ function ScreenerResults() {
       days_to_gain: 30,
       stock_gain_pct: 0.08,
       allocation: 1000,
-      label: 'Scenario 1'
-    }
+      label: 'Scenario 1',
+    },
   ]);
-
+  const [savedParams, setSavedParams] = useState([]);
+  const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [results, setResults] = useState(null); // ✅ NEW STATE
-  const [savedParams, setSavedParams] = useState([]);
-
-  const inputFields = [
-    'tickers',
-    'option_type',
-    'days_until_exp',
-    'strike_pct',
-    'days_to_gain',
-    'stock_gain_pct',
-    'allocation',
-    'label'
-  ];
 
   useEffect(() => {
-    axios.get('/api/saved-parameters/')
-      .then(res => setSavedParams(res.data))
-      .catch(err => console.error('Error fetching saved parameters:', err));
+    fetchSavedParams();
   }, []);
 
-  const handleParamChange = (index, name, value) => {
+  const fetchSavedParams = async () => {
+    try {
+      const res = await axios.get('/api/saved-parameters/');
+      setSavedParams(res.data);
+    } catch (err) {
+      console.error('Error fetching saved parameters:', err);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      const formatted = paramSets.map((p) => ({
+        ...p,
+        tickers: p.tickers.split(',').map((t) => t.trim().toUpperCase()),
+        strike_pct: parseFloat(p.strike_pct),
+        stock_gain_pct: parseFloat(p.stock_gain_pct),
+        allocation: parseFloat(p.allocation),
+        days_to_gain: parseInt(p.days_to_gain),
+        days_until_exp: parseInt(p.days_until_exp),
+      }));
+
+      const res = await runScreenerBackend({ param_sets: formatted });
+      setResults(res.data);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to run screener.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateScenario = (index, field, value) => {
     const updated = [...paramSets];
-    updated[index][name] = value;
+    updated[index][field] = value;
     setParamSets(updated);
   };
 
@@ -55,8 +80,8 @@ function ScreenerResults() {
         days_to_gain: 30,
         stock_gain_pct: 0.05,
         allocation: 1000,
-        label: `Scenario ${paramSets.length + 1}`
-      }
+        label: `Scenario ${paramSets.length + 1}`,
+      },
     ]);
   };
 
@@ -64,64 +89,32 @@ function ScreenerResults() {
     setParamSets(paramSets.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      const formatted = paramSets.map(p => ({
-        ...p,
-        tickers: p.tickers.split(',').map(t => t.trim().toUpperCase()),
-        strike_pct: parseFloat(p.strike_pct),
-        stock_gain_pct: parseFloat(p.stock_gain_pct),
-        allocation: parseFloat(p.allocation),
-        days_to_gain: parseInt(p.days_to_gain),
-        days_until_exp: parseInt(p.days_until_exp)
-      }));
-
-      const res = await runScreenerBackend({ param_sets: formatted }); // ✅ UPDATED
-      setResults(res.data); // ✅ NEW
-    } catch (err) {
-      console.error(err);
-      setError("Failed to run screener.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const saveScenario = async (param) => {
-    try {
-      const payload = {
+  const loadSavedScenario = (param) => {
+    setParamSets([
+      ...paramSets,
+      {
         ...param,
         tickers: Array.isArray(param.tickers)
-          ? param.tickers.map(t => t.trim().toUpperCase())
-          : param.tickers.split(',').map(t => t.trim().toUpperCase())
-      };
-
-      await axios.post('/api/saved-parameters/', payload);
-      const res = await axios.get('/api/saved-parameters/');
-      setSavedParams(res.data);
-    } catch (err) {
-      console.error("Error saving parameter set:", err);
-    }
-  };
-
-  const loadSavedScenario = (param) => {
-    setParamSets([...paramSets, {
-      ...param,
-      tickers: param.tickers.join(', ')
-    }]);
+          ? param.tickers.join(', ')
+          : param.tickers,
+      },
+    ]);
   };
 
   const deleteSavedScenario = async (id) => {
-    try {
-      await axios.delete(`/api/saved-parameters/${id}/`);
-      const res = await axios.get('/api/saved-parameters/');
-      setSavedParams(res.data);
-    } catch (err) {
-      console.error("Error deleting saved parameter set:", err);
-    }
+    await axios.delete(`/api/saved-parameters/${id}/`);
+    fetchSavedParams();
+  };
+
+  const saveScenario = async (param) => {
+    const payload = {
+      ...param,
+      tickers: Array.isArray(param.tickers)
+        ? param.tickers.map((t) => t.trim().toUpperCase())
+        : param.tickers.split(',').map((t) => t.trim().toUpperCase()),
+    };
+    await axios.post('/api/saved-parameters/', payload);
+    fetchSavedParams();
   };
 
   return (
@@ -130,53 +123,29 @@ function ScreenerResults() {
 
       <form onSubmit={handleSubmit} className="space-y-6 mb-6">
         {paramSets.map((param, idx) => (
-          <div key={idx} className="p-4 border border-gray-700 rounded-md bg-[#1a1a1a]">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="text-lg font-semibold text-green-400">Scenario {idx + 1}</h3>
-              <div>
-                {paramSets.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeScenario(idx)}
-                    className="text-sm text-red-400 hover:underline mr-2"
-                  >
-                    Remove
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => saveScenario(param)}
-                  className="text-sm text-blue-400 hover:underline"
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {inputFields.map((name) => (
-                <div key={name}>
-                  <label className="block text-sm mb-1 text-gray-300">
-                    {name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                  </label>
-                  <input
-                    type="text"
-                    name={name}
-                    value={param[name]}
-                    onChange={(e) => handleParamChange(idx, name, e.target.value)}
-                    className="w-full p-2 rounded bg-gray-800 border border-gray-600 text-white"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
+          <ScreenerScenarioForm
+            key={idx}
+            index={idx}
+            param={param}
+            updateScenario={updateScenario}
+            removeScenario={removeScenario}
+            saveScenario={saveScenario}
+            canRemove={paramSets.length > 1}
+          />
         ))}
 
         <div className="flex items-center gap-4">
-          <button type="button" onClick={addScenario} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded">
+          <button
+            type="button"
+            onClick={addScenario}
+            className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded"
+          >
             + Add Scenario
           </button>
-          <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-bold">
+          <button
+            type="submit"
+            className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-bold"
+          >
             Run Screener
           </button>
         </div>
@@ -185,67 +154,14 @@ function ScreenerResults() {
       {loading && <p className="text-gray-300">Loading...</p>}
       {error && <p className="text-red-400">{error}</p>}
 
-      {savedParams.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-lg font-semibold mb-3 text-white">💾 Saved Parameter Sets</h3>
-          <div className="space-y-2">
-            {savedParams.map((param) => (
-              <div
-                key={param.id}
-                className="flex justify-between items-center bg-[#1a1a1a] border border-gray-700 p-3 rounded-md hover:bg-[#222]"
-              >
-                <span className="text-sm text-white font-medium">{param.label}</span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => loadSavedScenario(param)}
-                    className="bg-blue-600 hover:bg-blue-500 px-3 py-1 text-sm rounded text-white"
-                  >
-                    Load
-                  </button>
-                  <button
-                    onClick={() => deleteSavedScenario(param.id)}
-                    className="bg-red-600 hover:bg-red-500 px-3 py-1 text-sm rounded text-white"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <ScreenerSavedParams
+        savedParams={savedParams}
+        onLoad={loadSavedScenario}
+        onDelete={deleteSavedScenario}
+      />
 
       {results && Array.isArray(results) && (
-        <div className="mt-10">
-          <h3 className="text-lg font-semibold mb-3 text-white">📊 Screener Results</h3>
-          <div className="overflow-x-auto rounded-md shadow border border-gray-800">
-            <table className="min-w-full table-auto text-sm bg-[#0e0e0e] text-left">
-              <thead className="sticky top-0 z-10 bg-black text-[#1DB954] text-xs font-semibold uppercase border-b border-gray-700">
-                <tr>
-                  {Object.keys(results[0]).map((col) => (
-                    <th key={col} className="px-4 py-2 whitespace-nowrap">{col}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((row, idx) => (
-                  <tr
-                    key={idx}
-                    className={`border-t border-gray-700 hover:bg-[#2a2a2a] transition ${
-                      idx % 2 === 0 ? 'bg-[#181818]' : 'bg-[#121212]'
-                    }`}
-                  >
-                    {Object.values(row).map((cell, i) => (
-                      <td key={i} className="px-4 py-2 whitespace-nowrap text-gray-100">
-                        {Array.isArray(cell) ? cell.join(', ') : String(cell)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <ScreenerResultsTable results={results} />
       )}
     </div>
   );

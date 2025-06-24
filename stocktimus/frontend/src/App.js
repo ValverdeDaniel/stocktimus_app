@@ -1,7 +1,6 @@
 import React from 'react';
 import './App.css';
-import ScreenerTable from './components/ScreenerTable';
-import ScreenerResults from './components/ScreenerResults';  // ✅ new import
+import ScreenerResults from './components/ScreenerResults';  // ✅ only import needed
 
 function App() {
   return (
@@ -11,13 +10,10 @@ function App() {
           Stocktimus
         </h1>
 
-        {/* 🔎 Live Screener */}
+        {/* 🎯 Main Screener Logic and Saved Scenarios */}
         <ScreenerResults />
 
-        <hr className="my-10 border-gray-700" />
-
-        {/* 📋 Previously Saved Screener Params */}
-        <ScreenerTable />
+        {/* If you want a footer or another section, you can add it here later */}
       </div>
     </div>
   );

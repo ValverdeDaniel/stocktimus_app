@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { runScreenerBackend } from '../services/api';
 
 function ScreenerResults() {
@@ -15,9 +16,27 @@ function ScreenerResults() {
     }
   ]);
 
-  const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [results, setResults] = useState(null); // ✅ NEW STATE
+  const [savedParams, setSavedParams] = useState([]);
+
+  const inputFields = [
+    'tickers',
+    'option_type',
+    'days_until_exp',
+    'strike_pct',
+    'days_to_gain',
+    'stock_gain_pct',
+    'allocation',
+    'label'
+  ];
+
+  useEffect(() => {
+    axios.get('/api/saved-parameters/')
+      .then(res => setSavedParams(res.data))
+      .catch(err => console.error('Error fetching saved parameters:', err));
+  }, []);
 
   const handleParamChange = (index, name, value) => {
     const updated = [...paramSets];
@@ -49,6 +68,7 @@ function ScreenerResults() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
     try {
       const formatted = paramSets.map(p => ({
         ...p,
@@ -60,13 +80,47 @@ function ScreenerResults() {
         days_until_exp: parseInt(p.days_until_exp)
       }));
 
-      const res = await runScreenerBackend({ param_sets: formatted });
-      setResults(res.data);
+      const res = await runScreenerBackend({ param_sets: formatted }); // ✅ UPDATED
+      setResults(res.data); // ✅ NEW
     } catch (err) {
       console.error(err);
-      setError("Failed to fetch results.");
+      setError("Failed to run screener.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveScenario = async (param) => {
+    try {
+      const payload = {
+        ...param,
+        tickers: Array.isArray(param.tickers)
+          ? param.tickers.map(t => t.trim().toUpperCase())
+          : param.tickers.split(',').map(t => t.trim().toUpperCase())
+      };
+
+      await axios.post('/api/saved-parameters/', payload);
+      const res = await axios.get('/api/saved-parameters/');
+      setSavedParams(res.data);
+    } catch (err) {
+      console.error("Error saving parameter set:", err);
+    }
+  };
+
+  const loadSavedScenario = (param) => {
+    setParamSets([...paramSets, {
+      ...param,
+      tickers: param.tickers.join(', ')
+    }]);
+  };
+
+  const deleteSavedScenario = async (id) => {
+    try {
+      await axios.delete(`/api/saved-parameters/${id}/`);
+      const res = await axios.get('/api/saved-parameters/');
+      setSavedParams(res.data);
+    } catch (err) {
+      console.error("Error deleting saved parameter set:", err);
     }
   };
 
@@ -79,30 +133,32 @@ function ScreenerResults() {
           <div key={idx} className="p-4 border border-gray-700 rounded-md bg-[#1a1a1a]">
             <div className="flex justify-between items-center mb-2">
               <h3 className="text-lg font-semibold text-green-400">Scenario {idx + 1}</h3>
-              {paramSets.length > 1 && (
+              <div>
+                {paramSets.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeScenario(idx)}
+                    className="text-sm text-red-400 hover:underline mr-2"
+                  >
+                    Remove
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => removeScenario(idx)}
-                  className="text-sm text-red-400 hover:underline"
+                  onClick={() => saveScenario(param)}
+                  className="text-sm text-blue-400 hover:underline"
                 >
-                  Remove
+                  Save
                 </button>
-              )}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {[
-                { label: "Tickers (comma-separated)", name: "tickers" },
-                { label: "Option Type (call/put)", name: "option_type" },
-                { label: "Days Until Expiration", name: "days_until_exp" },
-                { label: "Strike %", name: "strike_pct" },
-                { label: "Days to Gain", name: "days_to_gain" },
-                { label: "Stock Gain %", name: "stock_gain_pct" },
-                { label: "Allocation ($)", name: "allocation" },
-                { label: "Label", name: "label" }
-              ].map(({ label, name }) => (
+              {inputFields.map((name) => (
                 <div key={name}>
-                  <label className="block text-sm mb-1 text-gray-300">{label}</label>
+                  <label className="block text-sm mb-1 text-gray-300">
+                    {name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </label>
                   <input
                     type="text"
                     name={name}
@@ -129,33 +185,66 @@ function ScreenerResults() {
       {loading && <p className="text-gray-300">Loading...</p>}
       {error && <p className="text-red-400">{error}</p>}
 
+      {savedParams.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold mb-3 text-white">💾 Saved Parameter Sets</h3>
+          <div className="space-y-2">
+            {savedParams.map((param) => (
+              <div
+                key={param.id}
+                className="flex justify-between items-center bg-[#1a1a1a] border border-gray-700 p-3 rounded-md hover:bg-[#222]"
+              >
+                <span className="text-sm text-white font-medium">{param.label}</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => loadSavedScenario(param)}
+                    className="bg-blue-600 hover:bg-blue-500 px-3 py-1 text-sm rounded text-white"
+                  >
+                    Load
+                  </button>
+                  <button
+                    onClick={() => deleteSavedScenario(param.id)}
+                    className="bg-red-600 hover:bg-red-500 px-3 py-1 text-sm rounded text-white"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {results && Array.isArray(results) && (
-        <div className="overflow-x-auto rounded-md shadow border border-gray-800">
-          <table className="min-w-full table-auto text-sm bg-[#0e0e0e]">
-            <thead className="sticky top-0 z-10 bg-black text-[#1DB954] text-xs font-semibold uppercase border-b border-gray-700">
-              <tr>
-                {Object.keys(results[0]).map((col) => (
-                  <th key={col} className="px-4 py-2 whitespace-normal break-words text-left">
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {results.map((row, idx) => (
-                <tr
-                  key={idx}
-                  className={`border-t border-gray-700 hover:bg-[#2a2a2a] transition ${
-                    idx % 2 === 0 ? 'bg-[#181818]' : 'bg-[#121212]'
-                  }`}
-                >
-                  {Object.values(row).map((cell, i) => (
-                    <td key={i} className="px-4 py-2 whitespace-nowrap text-gray-100">{cell}</td>
+        <div className="mt-10">
+          <h3 className="text-lg font-semibold mb-3 text-white">📊 Screener Results</h3>
+          <div className="overflow-x-auto rounded-md shadow border border-gray-800">
+            <table className="min-w-full table-auto text-sm bg-[#0e0e0e] text-left">
+              <thead className="sticky top-0 z-10 bg-black text-[#1DB954] text-xs font-semibold uppercase border-b border-gray-700">
+                <tr>
+                  {Object.keys(results[0]).map((col) => (
+                    <th key={col} className="px-4 py-2 whitespace-nowrap">{col}</th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {results.map((row, idx) => (
+                  <tr
+                    key={idx}
+                    className={`border-t border-gray-700 hover:bg-[#2a2a2a] transition ${
+                      idx % 2 === 0 ? 'bg-[#181818]' : 'bg-[#121212]'
+                    }`}
+                  >
+                    {Object.values(row).map((cell, i) => (
+                      <td key={i} className="px-4 py-2 whitespace-nowrap text-gray-100">
+                        {Array.isArray(cell) ? cell.join(', ') : String(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

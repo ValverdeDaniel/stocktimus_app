@@ -212,13 +212,28 @@ def analyze_options_unicorn(
 
 def run_multiple_analyses(param_sets):
     combined_df = pd.DataFrame()
+
+    allowed_keys = {
+        'tickers', 'option_type', 'days_until_exp',
+        'strike_pct', 'days_to_gain', 'stock_gain_pct', 'allocation'
+    }
+
     for params in param_sets:
-        label = params.pop("label", "")
-        allocation = params.pop("allocation", None)
-        df = analyze_options_unicorn(**params, allocation=allocation)
-        df["Run_Label"] = label
-        combined_df = pd.concat([combined_df, df], ignore_index=True)
+        try:
+            # Clean parameters
+            clean_params = {k: v for k, v in params.items() if k in allowed_keys or k == 'label'}
+            label = clean_params.pop("label", "")
+            allocation = clean_params.pop("allocation", None)
+
+            # Run the analysis
+            df = analyze_options_unicorn(**clean_params, allocation=allocation)
+            df["Run_Label"] = label
+            combined_df = pd.concat([combined_df, df], ignore_index=True)
+        except Exception as e:
+            print(f"❌ Error analyzing scenario '{params.get('label', 'Unknown')}': {e}")
+
     return combined_df
+
 
 
 def highlightsTable(df):

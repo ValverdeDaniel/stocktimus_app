@@ -1,0 +1,112 @@
+from pathlib import Path
+
+day_21_text = """
+📘 Day 21: Securing Your Django API with Developer-Only Access (Longform Guide)
+
+==================================================================
+📌 Objective
+==================================================================
+Today, you will:
+- Lock down your API so only approved developer users can access it
+- Implement authentication and permissions in Django REST Framework
+- Use Django groups to manage access levels
+- Prepare your backend for staging and production deployment
+
+==================================================================
+🔐 Step 1: Switch from Open Access to Authenticated Access
+==================================================================
+
+Open `backend/settings.py` and replace this block:
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ]
+}
+
+With this stricter setup:
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ]
+}
+
+This means users must be logged in to access your API.
+
+==================================================================
+🧱 Step 2: Create a Custom Permission Class (IsDeveloper)
+==================================================================
+
+Create a new file: `contracts/permissions.py`
+
+Paste the following code:
+
+from rest_framework import permissions
+
+class IsDeveloper(permissions.BasePermission):
+    \"\"\"Allows access only to users in the 'Developers' group.\"\"\"
+    def has_permission(self, request, view):
+        return (
+            request.user
+            and request.user.is_authenticated
+            and request.user.groups.filter(name="Developers").exists()
+        )
+
+==================================================================
+🔌 Step 3: Apply the Custom Permission to Your Views
+==================================================================
+
+In `contracts/views.py`, update each view class to use the new permission:
+
+from rest_framework.permissions import IsAuthenticated
+from .permissions import IsDeveloper
+
+class OptionContractList(generics.ListCreateAPIView):
+    queryset = OptionContract.objects.all()
+    serializer_class = OptionContractSerializer
+    permission_classes = [IsAuthenticated, IsDeveloper]
+
+Do the same for `ScreenerInputList` and `WatchlistEntryList`.
+
+==================================================================
+🧑‍💻 Step 4: Create the Developers Group in Django Admin
+==================================================================
+
+1. Run the server:
+   python manage.py runserver
+
+2. Visit: http://127.0.0.1:8000/admin/
+
+3. Log in with your superuser account
+
+4. Go to **"Groups"** > Add Group > Name it `Developers`
+
+5. After creating the group, go to **"Users"** > Select your user > Add them to the `Developers` group
+
+Only users in this group will be able to access the protected APIs.
+
+==================================================================
+🧪 Step 5: Test Access Control
+==================================================================
+
+Use Postman, cURL, or your frontend to test:
+- Anonymous access to `/api/options/` → 🔴 Should be denied (401)
+- Logged-in developer access → ✅ Should return data
+
+==================================================================
+✅ What You’ve Accomplished
+==================================================================
+
+✔ Enabled login-required access to your API  
+✔ Created a custom permission (`IsDeveloper`)  
+✔ Applied group-based access control  
+✔ Configured your app for secure staging and production use  
+
+You're now ready to deploy with controlled API access!
+
+"""
+
+txt_path = Path("/mnt/data/Day 21 - Locking API to Developers Only.txt")
+txt_path.write_text(day_21_text)
+txt_path.name

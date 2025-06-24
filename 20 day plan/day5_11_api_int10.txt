@@ -1,0 +1,213 @@
+You're very welcome — and thank *you* for your kind words and consistency! Here's **📘 Day 10: Saving Screener Filters and Views (Advanced Personalization)** in longform `.txt` format for pasting:
+
+---
+
+````
+📘 Day 10: Saving Screener Filters and Views (Advanced Personalization)
+==================================================================
+📌 Objective
+==================================================================
+Today, you'll:
+- Allow users to save their current ScreenerTable parameter sets
+- Add a name/label for each saved screener run
+- Let users load a past view from a dropdown
+- Save and retrieve via Django backend tied to authenticated user
+
+This allows personalization and recall of powerful queries — a key premium feature.
+
+==================================================================
+🧠 Why Save Screener Filters?
+==================================================================
+Power users often want to save setups like:
+- “Short-Term High Volatility”
+- “Conservative ITM Picks”
+- “Earnings Season Calls”
+
+It enables:
+✔ Quick access to previous ideas  
+✔ Naming/labeling for clarity  
+✔ Creating side-by-side comparisons later  
+
+==================================================================
+📁 Step 1: Backend Model for Saved Screeners
+==================================================================
+In your Django `models.py`:
+
+```python
+from django.contrib.auth.models import User
+from django.db import models
+import jsonfield
+
+class SavedScreener(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    parameters = jsonfield.JSONField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.user.username})"
+````
+
+✅ Run migrations:
+
+```bash
+python manage.py makemigrations
+python manage.py migrate
+```
+
+\==================================================================
+🔧 Step 2: Backend API Endpoint
+===============================
+
+In `serializers.py`:
+
+```python
+from rest_framework import serializers
+from .models import SavedScreener
+
+class SavedScreenerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SavedScreener
+        fields = ['id', 'name', 'parameters', 'created_at']
+```
+
+In `views.py`:
+
+```python
+from rest_framework import viewsets, permissions
+from .models import SavedScreener
+from .serializers import SavedScreenerSerializer
+
+class SavedScreenerViewSet(viewsets.ModelViewSet):
+    serializer_class = SavedScreenerSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return SavedScreener.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+```
+
+In `urls.py`:
+
+```python
+from rest_framework.routers import DefaultRouter
+from .views import SavedScreenerViewSet
+
+router = DefaultRouter()
+router.register(r'savedscreeners', SavedScreenerViewSet, basename='savedscreeners')
+
+urlpatterns += router.urls
+```
+
+\==================================================================
+🌐 Step 3: Create Frontend Save & Load Components
+=================================================
+
+In `SavedScreenerManager.js`:
+
+```jsx
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+const API = "http://localhost:8000/api/savedscreeners/";
+
+function SavedScreenerManager({ currentParams, onLoad }) {
+  const [saved, setSaved] = useState([]);
+  const [name, setName] = useState("");
+
+  const headers = {
+    headers: { Authorization: `Token ${localStorage.getItem("token")}` }
+  };
+
+  const fetchSaved = async () => {
+    const res = await axios.get(API, headers);
+    setSaved(res.data);
+  };
+
+  useEffect(() => { fetchSaved(); }, []);
+
+  const save = async () => {
+    await axios.post(API, { name, parameters: currentParams }, headers);
+    fetchSaved();
+  };
+
+  return (
+    <div className="mb-4">
+      <h3 className="text-lg text-white">🔖 Save / Load Screener Runs</h3>
+      <input
+        className="text-black p-1 mr-2"
+        placeholder="Run name..."
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <button onClick={save} className="bg-green-600 hover:bg-green-700 px-2 py-1 text-white rounded">
+        Save
+      </button>
+      <div className="mt-2">
+        {saved.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => onLoad(s.parameters)}
+            className="bg-gray-700 text-sm px-2 py-1 m-1 rounded text-white hover:bg-gray-600"
+          >
+            {s.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default SavedScreenerManager;
+```
+
+\==================================================================
+🔁 Step 4: Integrate with ScreenerTable or Param UI
+===================================================
+
+In the parent component where screener params are stored:
+
+```jsx
+<SavedScreenerManager
+  currentParams={yourParameterObject}
+  onLoad={(params) => setYourParameterObject(params)}
+/>
+```
+
+You may need to `refetch()` ScreenerTable data after `setYourParameterObject`.
+
+\==================================================================
+✅ What You’ve Accomplished
+==========================
+
+✔ Built Django model to store saved parameter sets
+✔ Created API for saving/loading Screener queries
+✔ Linked saved runs to logged-in user
+✔ Created React UI to save and load setups
+✔ Enabled rapid repeat analysis and personalized workflows
+
+🧭 What’s Next:
+Your 10-Day ScreenerTable Arc is now COMPLETE 🎉
+You now have:
+
+* Live option scanner
+* Customizable + saved filters
+* Authenticated personalization
+
+You can now:
+
+* Add charts, overlays
+* Invite beta users
+* Launch pricing tiers
+* Start pitching to platforms like Robinhood
+
+🔥 Keep going! The data is yours to shape.
+
+```
+
+---
+
+Let me know if you'd like this exported as a `.txt` file or want a bonus "Day 11" with Stripe pricing tiers or chart overlays.
+```

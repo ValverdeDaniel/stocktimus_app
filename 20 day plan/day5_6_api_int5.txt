@@ -1,0 +1,88 @@
+// 📘 Day 5: Styling and Visual Enhancements (Frontend Polish)
+
+/*
+==================================================================
+📌 Objective
+==================================================================
+Today, you'll:
+- Improve visual appearance of your ScreenerTable and charts
+- Add TailwindCSS styling to make the UI clean and modern
+- Use layout tricks to group filters, forms, tables, and graphs
+*/
+
+// ==================================================================
+// 🎨 Step 1: Add Tailwind Classes to ScreenerTable
+// ==================================================================
+
+// File: src/components/ScreenerTable.js
+
+<div className="p-4 bg-white rounded-xl shadow-md">
+  <h2 className="text-xl font-bold text-gray-800 mb-4">📈 Screener Results</h2>
+  <table className="w-full text-sm text-left text-gray-500">
+    <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b">
+      <tr>
+        <th className="px-4 py-2">Ticker</th>
+        <th className="px-4 py-2">Strike</th>
+        <th className="px-4 py-2">Expiration</th>
+        <th className="px-4 py-2">% Gain</th>
+        <th className="px-4 py-2">Premium</th>
+      </tr>
+    </thead>
+    <tbody>
+      {data.map((row, i) => (
+        <tr key={i} className="bg-white border-b hover:bg-gray-50">
+          <td className="px-4 py-2 font-medium text-gray-900">{row.Ticker}</td>
+          <td className="px-4 py-2">{row.Strike}</td>
+          <td className="px-4 py-2">{row.Expiration}</td>
+          <td className="px-4 py-2">{row["Premium % Gain"]}%</td>
+          <td className="px-4 py-2">${row["Current Premium"]}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+
+// ==================================================================
+// 💡 Step 2: Group Components in App.js
+// ==================================================================
+
+// Add spacing and layout for Watchlist + Screener sections
+
+<div className="container mx-auto px-4 py-6 space-y-6">
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div>
+      <ScreenerForm onAdd={handleReload} />
+      <ScreenerTable key={reload} />
+    </div>
+    <div>
+      <WatchlistForm onAdd={handleReload} />
+      <WatchlistTable key={reload} />
+    </div>
+  </div>
+
+  <div>
+    <h2 className="text-2xl font-bold mt-8 mb-4 text-center">📊 Visual Summary</h2>
+    <ScreenerChart data={screenerResults} />
+  </div>
+</div>
+
+// ==================================================================
+// 🧼 Step 3: Add Consistent Button + Input Styling
+// ==================================================================
+
+<button className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-full">
+  Add to Screener
+</button>
+
+<input className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+
+// ==================================================================
+// ✅ What You’ve Accomplished
+// ==================================================================
+
+/*
+✔ Used TailwindCSS to make tables, inputs, and buttons look better
+✔ Grouped UI sections clearly: Screener + Watchlist + Charts
+✔ Created mobile-friendly and professional layout
+✔ Ready for Day 6: Advanced Filtering and Strategy Labels
+*/

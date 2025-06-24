@@ -1,0 +1,124 @@
+📘 Day 1: Backend Integration of `analyze_options_unicorn` with Django API
+
+==================================================================
+📌 Objective
+==================================================================
+Today, you will:
+- Move your Python-based EODHD screener logic into your Django backend
+- Create an API endpoint to run the screener dynamically
+- Return results as JSON from Django so your React frontend can fetch and display them
+
+==================================================================
+📁 Step 1: Create a Django Utility Module
+==================================================================
+
+Create a new file inside your Django app (e.g., `contracts/utils.py`) and paste your full `analyze_options_unicorn` code here.
+
+> File: `screener/utils.py`
+
+```python
+import requests
+import pandas as pd
+import numpy as np
+from scipy.stats import norm
+from datetime import datetime, timedelta, timezone
+import logging
+
+API_KEY = "67ffece4b2ae08.94077168"
+BASE_URL = "https://eodhd.com/api/mp/unicornbay/options/contracts"
+
+# Include all functions: black_scholes_call_price, put_price, current_stock_price...
+# Include your analyze_options_unicorn, run_multiple_analyses, highlightsTable
+# Paste your full code here from the script you shared
+```
+
+---
+
+==================================================================
+📂 Step 2: Add a Django View to Run Screener
+==================================================================
+
+In your Django app (e.g., `contracts/views.py`):
+
+```python
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .utils import run_multiple_analyses
+
+class RunScreenerAPIView(APIView):
+    def post(self, request):
+        try:
+            param_sets = request.data.get("param_sets", [])
+            if not param_sets:
+                return Response({"error": "No param_sets provided."}, status=400)
+
+            df = run_multiple_analyses(param_sets)
+            return Response(df.to_dict(orient="records"))
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+```
+
+---
+
+==================================================================
+🔗 Step 3: Wire up the URL Route
+==================================================================
+
+In `screener/urls.py` (or your main urls):
+
+```python
+from django.urls import path
+from .views import RunScreenerAPIView
+
+urlpatterns = [
+    path('run_screener/', RunScreenerAPIView.as_view(), name='run_screener'),
+]
+```
+
+And ensure `screener.urls` is included in your `project/urls.py`:
+
+```python
+path('api/', include('screener.urls')),
+```
+
+---
+
+==================================================================
+🧪 Step 4: Test Your Endpoint
+==================================================================
+
+Use Postman or CURL:
+
+```json
+POST http://localhost:8000/api/run_screener/
+Content-Type: application/json
+
+{
+  "param_sets": [
+    {
+      "tickers": ["AAPL"],
+      "option_type": "call",
+      "days_until_exp": 90,
+      "strike_pct": 0.2,
+      "days_to_gain": 30,
+      "stock_gain_pct": 0.1,
+      "allocation": 100,
+      "label": "Example"
+    }
+  ]
+}
+```
+
+Expected Response: JSON array with option contract analysis
+
+---
+
+==================================================================
+✅ What You’ve Accomplished
+==================================================================
+
+✔ Moved options analysis logic into your Django backend  
+✔ Created a POST API endpoint for running custom screeners  
+✔ Returned pandas DataFrame as JSON  
+✔ Ready to plug into React frontend in Day 2!

@@ -1,0 +1,125 @@
+📘️ Day 6: Add Filtering and Grouping to Screener Results
+
+\==================================================================
+📆 Objective
+============
+
+Today, you will:
+
+* Add filter controls (by label, ticker, expiration)
+* Enable toggling visibility of groups
+* Prepare for sorting and enhanced UX
+
+This makes it easier to digest the data output from `analyze_options_unicorn()`.
+
+\==================================================================
+🧠 Why This Matters
+===================
+
+Your screener can now return hundreds of rows. Filters and groupings make it usable:
+
+* Let users drill down to specific ideas
+* Easily compare label strategies side-by-side
+* Support grouping by strategy run label, ticker, or expiration
+
+\==================================================================
+📂 Step 1: Add Filters to ScreenerResults.js
+============================================
+
+Update your `ScreenerResults` component:
+
+```jsx
+import React, { useState, useEffect } from 'react';
+import { getScreenerResults } from '../services/api';
+
+function ScreenerResults() {
+  const [results, setResults] = useState([]);
+  const [filtered, setFiltered] = useState([]);
+  const [filters, setFilters] = useState({ label: '', ticker: '', expiration: '' });
+
+  useEffect(() => {
+    getScreenerResults()
+      .then((res) => {
+        setResults(res.data);
+        setFiltered(res.data);
+      });
+  }, []);
+
+  useEffect(() => {
+    const { label, ticker, expiration } = filters;
+    const f = results.filter(row => {
+      return (!label || row.Run_Label.includes(label)) &&
+             (!ticker || row.Ticker.toLowerCase().includes(ticker.toLowerCase())) &&
+             (!expiration || row.Expiration.includes(expiration));
+    });
+    setFiltered(f);
+  }, [filters, results]);
+
+  return (
+    <div className="p-4">
+      <h2 className="text-xl font-bold text-[#1DB954] mb-4">Filtered Screener Results</h2>
+      <div className="flex gap-4 mb-4">
+        <input placeholder="Filter by Label" onChange={e => setFilters({...filters, label: e.target.value})} />
+        <input placeholder="Filter by Ticker" onChange={e => setFilters({...filters, ticker: e.target.value})} />
+        <input placeholder="Exp Date (YYYY-MM-DD)" onChange={e => setFilters({...filters, expiration: e.target.value})} />
+      </div>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-[#121212] text-[#1DB954]">
+            <th className="px-2 py-1 text-left">Label</th>
+            <th>Ticker</th>
+            <th>Expiration</th>
+            <th>Strike</th>
+            <th>Premium % Gain</th>
+            <th>Current Premium</th>
+            <th>IV</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map((r, i) => (
+            <tr key={i} className="border-t border-gray-700 hover:bg-[#1f1f1f]">
+              <td>{r.Run_Label}</td>
+              <td>{r.Ticker}</td>
+              <td>{r.Expiration}</td>
+              <td>{r.Strike}</td>
+              <td>{r["Premium % Gain"]}%</td>
+              <td>{r["Current Premium"]}</td>
+              <td>{r["Implied Volatility"]}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export default ScreenerResults;
+```
+
+\==================================================================
+🛠️ Step 2: Optional Grouping Toggle (Future Enhancement)
+=========================================================
+
+Add dropdowns or buttons to group by `Run_Label`, `Ticker`, or `Expiration`, and collapse/expand rows.
+(We'll implement this in Day 7 with saved dashboards.)
+
+\==================================================================
+🔹 Step 3: (Optional UX) Add Reset Filters Button
+=================================================
+
+You can add a button:
+
+```jsx
+<button onClick={() => setFilters({ label: '', ticker: '', expiration: '' })}>Reset Filters</button>
+```
+
+\==================================================================
+📊 What You Accomplished
+========================
+
+* Added input filters to make large datasets more digestible
+* Filtered screener results by label, ticker, and expiration date
+* Set up groundwork for group toggling and advanced filtering
+
+Next up: **Day 7** – Save, export, and sort screener results by gain or expiration.
+Let me know when you're ready!

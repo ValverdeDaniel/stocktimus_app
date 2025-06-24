@@ -37,3 +37,18 @@ class WatchlistEntry(models.Model):
 
     def __str__(self):
         return f"{self.ticker} {self.option_type.upper()} {self.strike}"
+
+class SavedScreenerParameter(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    label = models.CharField(max_length=100)
+    tickers = models.JSONField()
+    option_type = models.CharField(max_length=10)
+    days_until_exp = models.IntegerField()
+    strike_pct = models.FloatField()
+    days_to_gain = models.IntegerField()
+    stock_gain_pct = models.FloatField()
+    allocation = models.FloatField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.label

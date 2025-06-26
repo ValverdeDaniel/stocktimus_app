@@ -111,7 +111,6 @@ def analyze_options_unicorn(
                 logging.info(f"No options data returned for {ticker}")
                 continue
 
-            # Group by expiration date and keep 2 closest strikes per group
             grouped = {}
             for opt in options_data:
                 attr = opt.get("attributes", {})
@@ -138,6 +137,9 @@ def analyze_options_unicorn(
 
                 delta = attr.get("delta")
                 theta = attr.get("theta")
+                gamma = attr.get('gamma')
+                vega = attr.get('vega')
+                rho = attr.get('rho')
 
                 bid = attr.get("bid")
                 bid_date = attr.get("bid_date")
@@ -180,17 +182,20 @@ def analyze_options_unicorn(
                     "Expiration": exp_date_str,
                     "Strike": strike,
                     "% OTM/ITM": round(pct_otm_itm, 2) if isinstance(pct_otm_itm, (int, float)) else pct_otm_itm,
-                    "Current Stock": round(current_price, 2),
-                    "Simulated Stock": round(sim_stock, 2),
+                    "Underlying Price": round(current_price, 2),
+                    "Simulated Underlying": round(sim_stock, 2),
                     "Current Premium": round(last_price, 2),
                     "Simulated Premium": round(est_value, 2) if est_value is not None else "NA",
                     "Days Until Expiration": exp_days,
                     "Days to Gain": days_to_gain,
-                    "Stock Gain %": round(stock_gain_pct * 100, 2),
+                    "Underlying Gain %": round(stock_gain_pct * 100, 2),
                     "Premium % Gain": round(pct_gain, 2) if pct_gain is not None else "NA",
                     "Implied Volatility": round(iv * 100, 2),
                     "Delta": round(delta, 4) if delta is not None else "NA",
                     "Theta": round(theta, 4) if theta is not None else "NA",
+                    "Gamma": round(gamma, 4) if gamma is not None else "NA",
+                    "Vega": round(vega, 4) if vega is not None else "NA",
+                    "Rho": round(rho, 4) if rho is not None else "NA",
                     "Bid": bid,
                     "Ask": ask,
                     "Last Premium": last_Premium,
@@ -200,8 +205,8 @@ def analyze_options_unicorn(
                 }
 
                 if alloc_value is not None and simulated_value is not None:
-                    result["Allocated ($)"] = round(alloc_value, 2)
-                    result["Simulated Equity ($)"] = round(simulated_value, 2)
+                    result["Allocated Equity"] = round(alloc_value, 2)
+                    result["Simulated Equity"] = round(simulated_value, 2)
 
                 results.append(result)
 
@@ -220,14 +225,12 @@ def run_multiple_analyses(param_sets):
 
     for params in param_sets:
         try:
-            # Clean parameters
             clean_params = {k: v for k, v in params.items() if k in allowed_keys or k == 'label'}
             label = clean_params.pop("label", "")
             allocation = clean_params.pop("allocation", None)
 
-            # Run the analysis
             df = analyze_options_unicorn(**clean_params, allocation=allocation)
-            df["Run_Label"] = label
+            df["Run Label"] = label
             combined_df = pd.concat([combined_df, df], ignore_index=True)
         except Exception as e:
             print(f"❌ Error analyzing scenario '{params.get('label', 'Unknown')}': {e}")

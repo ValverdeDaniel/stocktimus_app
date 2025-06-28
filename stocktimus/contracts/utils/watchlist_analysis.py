@@ -12,6 +12,11 @@ def simulate_option_watchlist_single(ticker, option_type, strike, expiration, da
     Simulates option scenarios for a single watchlist contract.
     """
     try:
+        # ✅ Convert strike to float early to avoid type errors
+        strike = float(strike)
+        average_cost_per_contract = float(average_cost_per_contract)  # ✅ add this line
+
+
         current_price = current_stock_price(ticker)
         if current_price <= 0:
             logging.warning(f"Invalid stock price for {ticker}")

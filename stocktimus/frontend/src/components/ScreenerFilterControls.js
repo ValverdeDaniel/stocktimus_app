@@ -29,10 +29,10 @@ const ScreenerFilterControls = ({
   const customStyles = {
     control: (base, state) => ({
       ...base,
-      backgroundColor: "#121212",
-      color: "#FFFFFF",
+      backgroundColor: "#121212", // matches bg-background
+      color: "#FFFFFF", // matches text-text
       borderRadius: "6px",
-      borderColor: state.isFocused ? "#1DB954" : "#333",
+      borderColor: state.isFocused ? "#1DB954" : "#333", // primary color when focused
       boxShadow: state.isFocused ? "0 0 0 1px #1DB954" : "none",
       minHeight: '36px',
       height: '36px',
@@ -42,7 +42,7 @@ const ScreenerFilterControls = ({
     }),
     menu: (base) => ({
       ...base,
-      backgroundColor: "#121212",
+      backgroundColor: "#121212", // matches bg-background
       zIndex: 9999
     }),
     option: (base, state) => ({
@@ -84,9 +84,9 @@ const ScreenerFilterControls = ({
   };
 
   return (
-    <div className="my-4 w-full max-w-6xl z-[100] relative flex flex-col md:flex-row gap-4">
-      <div className="flex-1 min-w-[200px]">
-        <label className="block text-sm font-medium text-white mb-1">Filter by Expiration</label>
+    <div className="filters flex-responsive container-wide">
+      <div className="filter-select">
+        <label className="filter-heading">Filter by Expiration</label>
         <Select
           isMulti
           options={expirationOptions}
@@ -98,8 +98,8 @@ const ScreenerFilterControls = ({
         />
       </div>
 
-      <div className="flex-1 min-w-[200px]">
-        <label className="block text-sm font-medium text-white mb-1">Filter by Ticker</label>
+      <div className="filter-select">
+        <label className="filter-heading">Filter by Ticker</label>
         <Select
           isMulti
           options={tickerOptions}

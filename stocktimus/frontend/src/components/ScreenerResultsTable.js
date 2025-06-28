@@ -73,12 +73,10 @@ function ScreenerResultsTable({ results }) {
       return filteredRow;
     });
 
-    const withExpirationAndTickerFilter = withVisibleColumns.filter(row =>
+    return withVisibleColumns.filter(row =>
       (selectedExpirations.length === 0 || selectedExpirations.includes(row["Expiration"])) &&
       (selectedTickers.length === 0 || selectedTickers.includes(row["Ticker"]))
     );
-
-    return withExpirationAndTickerFilter;
   }, [sortedData, visibleColumns, selectedExpirations, selectedTickers]);
 
   const handleSort = (column) => {
@@ -121,9 +119,7 @@ function ScreenerResultsTable({ results }) {
               <button
                 key={group}
                 onClick={() => setSelectedGroup(group)}
-                className={`px-3 py-1 rounded text-sm font-medium ${
-                  selectedGroup === group ? 'bg-[#1DB954] text-white' : 'bg-gray-700 text-white'
-                }`}
+                className={`tab-button ${selectedGroup === group ? 'tab-selected' : 'tab-unselected'}`}
               >
                 {group}
               </button>
@@ -135,7 +131,7 @@ function ScreenerResultsTable({ results }) {
             data={filteredData}
             headers={visibleColumns.map(col => ({ label: col, key: col }))}
             filename={"screener_filtered_optionsLeveling.csv"}
-            className="bg-[#1DB954] text-white font-medium text-sm py-1 px-3 rounded"
+            className="btn-export-primary"
           >
             Export Filtered CSV
           </CSVLink>
@@ -144,7 +140,7 @@ function ScreenerResultsTable({ results }) {
             data={results}
             headers={COLUMN_GROUPS["All"].map(col => ({ label: col, key: col }))}
             filename={"screener_full_optionsLeveling.csv"}
-            className="bg-gray-700 text-white font-medium text-sm py-1 px-3 rounded"
+            className="btn-export-secondary"
           >
             Export Full CSV
           </CSVLink>
@@ -152,24 +148,17 @@ function ScreenerResultsTable({ results }) {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-visible rounded-md shadow border border-gray-800">
-        <table className="min-w-full table-auto text-sm bg-[#0e0e0e] text-left">
-          <thead className="sticky top-0 z-0 border-b border-gray-700">
+      <div className="table-container">
+        <table className="table">
+          <thead className="table-header">
             <tr>
               {visibleColumns.map((col) => (
                 <th
                   key={col}
                   onClick={() => handleSort(col)}
-                  className={`px-4 py-2 break-words text-left align-top cursor-pointer select-none ${
+                  className={`table-header-cell ${
                     ESSENTIAL_COLUMNS.includes(col) ? 'min-w-[120px] max-w-[120px]' : 'max-w-[160px]'
                   }`}
-                  style={{
-                    backgroundColor: '#000000',
-                    color: '#1DB954',
-                    textTransform: 'uppercase',
-                    fontWeight: 600,
-                    fontSize: '0.75rem'
-                  }}
                 >
                   <span className="flex items-center">
                     {col} {getSortIcon(col)}
@@ -183,16 +172,12 @@ function ScreenerResultsTable({ results }) {
             {filteredData.map((row, idx) => (
               <tr
                 key={idx}
-                className={`border-t border-gray-700 transition ${
-                  idx % 2 === 0 ? 'bg-[#181818]' : 'bg-[#121212]'
-                } hover:bg-[#1ed76059]`}
+                className={`border-t border-muted transition ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} table-row-hover`}
               >
                 {visibleColumns.map((col, i) => (
                   <td
                     key={i}
-                    className={`px-4 py-2 whitespace-nowrap text-gray-100 ${
-                      ESSENTIAL_COLUMNS.includes(col) ? 'min-w-[120px] max-w-[120px]' : ''
-                    }`}
+                    className={`table-cell ${ESSENTIAL_COLUMNS.includes(col) ? 'min-w-[120px] max-w-[120px]' : ''}`}
                   >
                     {Array.isArray(row[col]) ? row[col].join(', ') : String(row[col])}
                   </td>

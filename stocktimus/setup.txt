@@ -34,3 +34,4 @@ You're now ready to build!
 
 pgadmin root password; 3*P*******
 stocktimus database pw: 4*M*****
+

@@ -3,32 +3,32 @@ import React from 'react';
 function ScreenerSavedParams({ savedParams, onLoad, onDelete }) {
   return (
     <div className="mt-8">
-      <h3 className="text-lg font-semibold mb-3 text-white">💾 Saved Parameter Sets</h3>
+      <h3 className="heading-lg">💾 Saved Parameter Sets</h3>
       <div className="space-y-4">
         {savedParams.map((param) => (
           <div
             key={param.id}
-            className="bg-[#1a1a1a] border border-gray-700 p-5 rounded-lg hover:bg-[#222] shadow-sm transition"
+            className="card card-hover"
           >
             <div className="flex justify-between items-start mb-3">
-              <span className="text-sm font-bold text-white">{param.label}</span>
+              <span className="text-sm font-bold text-text">{param.label}</span>
               <div className="flex gap-2">
                 <button
                   onClick={() => onLoad(param)}
-                  className="bg-blue-600 hover:bg-blue-500 px-3 py-1 text-sm rounded text-white"
+                  className="btn-blue"
                 >
                   Load
                 </button>
                 <button
                   onClick={() => onDelete(param.id)}
-                  className="bg-red-600 hover:bg-red-500 px-3 py-1 text-sm rounded text-white"
+                  className="btn-red"
                 >
                   Delete
                 </button>
               </div>
             </div>
 
-            <div className="text-sm text-gray-300 flex flex-wrap gap-x-8 gap-y-1 pl-1">
+            <div className="text-sm text-muted flex flex-wrap gap-x-8 gap-y-1 pl-1">
               <div className="max-w-full break-words">
                 <strong>Tickers:</strong>{' '}
                 {Array.isArray(param.tickers) ? param.tickers.join(', ') : param.tickers}

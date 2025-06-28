@@ -1,21 +1,28 @@
 import React from 'react';
-import './App.css';
-import ScreenerResults from './components/ScreenerResults';  // ✅ only import needed
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import './App.css';            // ✅ Your base/global styles or Tailwind resets
+import './styles/ui.css';      // ✅ Your reusable UI design system classes
+import Navbar from './components/Navbar';  // ✅ Your new navbar component
+import ScreenerResults from './components/ScreenerResults';  // ✅ Screener page
+// Future Watchlist page placeholder:
+// import WatchlistResults from './components/Watchlist/WatchlistResults';
 
 function App() {
   return (
-    <div className="App dark">
-      <div className="min-h-screen bg-gray-900 text-white p-4">
-        <h1 className="text-5xl font-extrabold text-[#1DB954] mb-8 tracking-tight">
-          Options Leveling
-        </h1>
+    <Router>
+      <div className="App dark bg-background text-text min-h-screen">
+        <Navbar />
 
-        {/* 🎯 Main Screener Logic and Saved Scenarios */}
-        <ScreenerResults />
-
-        {/* If you want a footer or another section, you can add it here later */}
+        <div className="container-wide p-4">
+          <Routes>
+            <Route path="/" element={<ScreenerResults />} />
+            {/* Uncomment this once you build your watchlist tool:
+            <Route path="/watchlist" element={<WatchlistResults />} />
+            */}
+          </Routes>
+        </div>
       </div>
-    </div>
+    </Router>
   );
 }
 

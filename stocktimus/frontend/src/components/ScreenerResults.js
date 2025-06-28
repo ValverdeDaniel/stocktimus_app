@@ -1,4 +1,3 @@
-// ✅ ScreenerResults.js (main container)
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { runScreenerBackend } from '../services/api';
@@ -118,8 +117,8 @@ function ScreenerResults() {
   };
 
   return (
-    <div className="p-4 text-white">
-      <h2 className="text-2xl font-bold text-[#1DB954] mb-6">🎯 Run Custom Screener</h2>
+    <div className="p-4 text-text">
+      <h2 className="heading-xl">🎯 Run Custom Screener</h2>
 
       <form onSubmit={handleSubmit} className="space-y-6 mb-6">
         {paramSets.map((param, idx) => (
@@ -138,21 +137,21 @@ function ScreenerResults() {
           <button
             type="button"
             onClick={addScenario}
-            className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded"
+            className="btn-secondary"
           >
             + Add Scenario
           </button>
           <button
             type="submit"
-            className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-bold"
+            className="btn-primary"
           >
             Run Screener
           </button>
         </div>
       </form>
 
-      {loading && <p className="text-gray-300">Loading...</p>}
-      {error && <p className="text-red-400">{error}</p>}
+      {loading && <p className="text-muted">Loading...</p>}
+      {error && <p className="text-error">{error}</p>}
 
       <ScreenerSavedParams
         savedParams={savedParams}

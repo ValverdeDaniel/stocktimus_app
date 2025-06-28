@@ -1,0 +1,136 @@
+📘 Day 7: Building the Dynamic Parameter Stacker (Pre-Query Screener)
+
+==================================================================
+📌 Objective
+==================================================================
+Today, you will:
+- Create a dynamic UI to allow users to stack multiple screener parameters
+- Store those parameters in React state
+- Use a "Run Screener" button to send the full parameter set to the backend
+- Prepare the foundation for post-query filters and column toggling
+
+==================================================================
+🧠 Why Use a Dynamic Parameter Stacker?
+==================================================================
+This gives users control over which tickers, thresholds, and configurations they care about *before* querying the API. It enables scenario comparisons and supports saved screening strategies.
+
+==================================================================
+🗂️ Step 1: Create `ParameterStacker.js`
+==================================================================
+
+Create a new file inside `src/components/ParameterStacker.js`:
+
+```jsx
+import React, { useState } from 'react';
+
+function ParameterStacker({ onRun }) {
+  const [param, setParam] = useState({
+    label: '',
+    tickers: '',
+    option_type: 'call',
+    strike_pct: 0.2,
+    days_until_exp: 90,
+    days_to_gain: 30,
+    stock_gain_pct: 0.1,
+    allocation: 1000
+  });
+
+  const [paramList, setParamList] = useState([]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setParam({ ...param, [name]: value });
+  };
+
+  const addParameter = () => {
+    setParamList([...paramList, { ...param }]);
+  };
+
+  const runScreener = () => {
+    onRun(paramList);
+  };
+
+  return (
+    <div className="bg-zinc-900 p-4 rounded-lg">
+      <h3 className="text-xl font-bold mb-2 text-white">Add Screener Parameters</h3>
+
+      <div className="grid grid-cols-2 gap-2">
+        <input name="label" placeholder="Label" onChange={handleChange} className="p-2 rounded bg-zinc-800 text-white" />
+        <input name="tickers" placeholder="Tickers (comma)" onChange={handleChange} className="p-2 rounded bg-zinc-800 text-white" />
+        <select name="option_type" onChange={handleChange} className="p-2 rounded bg-zinc-800 text-white">
+          <option value="call">Call</option>
+          <option value="put">Put</option>
+        </select>
+        <input name="strike_pct" placeholder="Strike %" onChange={handleChange} className="p-2 rounded bg-zinc-800 text-white" />
+        <input name="days_until_exp" placeholder="Days Until Exp" onChange={handleChange} className="p-2 rounded bg-zinc-800 text-white" />
+        <input name="days_to_gain" placeholder="Days to Gain" onChange={handleChange} className="p-2 rounded bg-zinc-800 text-white" />
+        <input name="stock_gain_pct" placeholder="Stock Gain %" onChange={handleChange} className="p-2 rounded bg-zinc-800 text-white" />
+        <input name="allocation" placeholder="Allocation ($)" onChange={handleChange} className="p-2 rounded bg-zinc-800 text-white" />
+      </div>
+
+      <button onClick={addParameter} className="mt-4 px-4 py-2 bg-green-600 text-white rounded">➕ Add Parameter Set</button>
+
+      <div className="mt-4 text-white">
+        <h4 className="font-semibold mb-2">Parameter Queue:</h4>
+        {paramList.map((p, i) => (
+          <div key={i} className="text-sm bg-zinc-800 p-2 rounded mb-1">
+            {p.label} — {p.tickers}
+          </div>
+        ))}
+      </div>
+
+      <button onClick={runScreener} className="mt-4 px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">🚀 Run Screener</button>
+    </div>
+  );
+}
+
+export default ParameterStacker;
+```
+
+==================================================================
+📁 Step 2: Use `ParameterStacker` in Screener Dashboard
+==================================================================
+
+In your `ScreenerDashboard.js` or similar:
+
+```jsx
+import React, { useState } from 'react';
+import ParameterStacker from './ParameterStacker';
+import ScreenerTable from './ScreenerTable';
+
+function ScreenerDashboard() {
+  const [queryResults, setQueryResults] = useState([]);
+
+  const handleRunScreener = async (paramSets) => {
+    const response = await fetch('/api/custom-screener/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ param_sets: paramSets })
+    });
+    const data = await response.json();
+    setQueryResults(data);
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <ParameterStacker onRun={handleRunScreener} />
+      <ScreenerTable data={queryResults} />
+    </div>
+  );
+}
+
+export default ScreenerDashboard;
+```
+
+==================================================================
+✅ What You’ve Accomplished
+==================================================================
+
+✔ Created a dynamic UI for stacking multiple screener configs
+✔ Captured multiple parameter objects in an array
+✔ Sent them to the backend via a single POST call
+✔ Laid the groundwork for showing different result sets by label
+
+Next up: **Day 8 — Adding Post-Query Filters to Narrow Down Results.**

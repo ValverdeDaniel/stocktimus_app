@@ -1,0 +1,129 @@
+📘 Day 8: Adding Post-Query Filtering and Column Toggling to ScreenerTable
+
+\==================================================================
+📌 Objective
+============
+
+Today, you will:
+
+* Add post-query filters to refine screener results (e.g., Premium % Gain, IV, Delta)
+* Implement toggleable column groups (e.g., Greeks, Simulation Data)
+* Make the ScreenerTable more dynamic and personalized
+
+\==================================================================
+🧠 Why Post-Query Filtering?
+============================
+
+While parameter stacking determines what data gets queried, post-query filtering:
+
+* Helps users isolate opportunities with specific traits (e.g., high IV, large % gain)
+* Makes the table interactive after it loads
+* Mimics Excel-style column filtering without refetching
+
+\==================================================================
+📁 Step 1: Define Filter Sliders in UI
+======================================
+
+In `ScreenerTable.js`, above your table:
+
+```jsx
+const [filters, setFilters] = useState({
+  minGain: 0,
+  minIV: 0,
+  maxIV: 100,
+  minDelta: -1,
+  maxDelta: 1,
+});
+
+const handleSliderChange = (e) => {
+  const { name, value } = e.target;
+  setFilters({ ...filters, [name]: parseFloat(value) });
+};
+```
+
+Render filters:
+
+```jsx
+<div className="flex gap-4 items-center text-sm">
+  <div>
+    <label>Premium % Gain ≥</label>
+    <input type="range" name="minGain" min="-100" max="500" step="1" value={filters.minGain} onChange={handleSliderChange} />
+    <span>{filters.minGain}%</span>
+  </div>
+  <div>
+    <label>IV %</label>
+    <input type="range" name="minIV" min="0" max="300" step="1" value={filters.minIV} onChange={handleSliderChange} />
+    <span>{filters.minIV}%</span>
+  </div>
+</div>
+```
+
+\==================================================================
+📋 Step 2: Apply Filtering Logic to Table Rows
+==============================================
+
+In your `map()` loop for table rows:
+
+```jsx
+const filteredData = data.filter(row =>
+  row["Premium % Gain"] >= filters.minGain &&
+  row["Implied Volatility"] >= filters.minIV &&
+  row["Implied Volatility"] <= filters.maxIV &&
+  row["Delta"] >= filters.minDelta &&
+  row["Delta"] <= filters.maxDelta
+);
+```
+
+Replace `data.map(...)` with `filteredData.map(...)`
+
+\==================================================================
+🎛 Step 3: Column Group Toggle State
+====================================
+
+Above the table:
+
+```jsx
+const [visibleGroups, setVisibleGroups] = useState({
+  greeks: true,
+  simulation: true,
+  rawPricing: true
+});
+
+const toggleGroup = (group) => {
+  setVisibleGroups({ ...visibleGroups, [group]: !visibleGroups[group] });
+};
+```
+
+Render buttons:
+
+```jsx
+<div className="flex gap-2">
+  <button onClick={() => toggleGroup("greeks")}>Toggle Greeks</button>
+  <button onClick={() => toggleGroup("simulation")}>Toggle Simulation</button>
+  <button onClick={() => toggleGroup("rawPricing")}>Toggle Pricing</button>
+</div>
+```
+
+\==================================================================
+🧱 Step 4: Show/Hide Columns Conditionally
+==========================================
+
+Wrap column headers and cells:
+
+```jsx
+{visibleGroups.greeks && <th>Delta</th>}
+...
+{visibleGroups.greeks && <td>{row["Delta"]}</td>}
+```
+
+Repeat for `Theta`, `Implied Volatility`, `Simulated Premium`, etc.
+
+\==================================================================
+✅ What You’ve Accomplished
+==========================
+
+✔ Added slider-based filters to narrow results
+✔ Enabled toggling of column groups like Greeks and Simulations
+✔ Made your table more interactive and focused
+
+Next up: **Day 9 – Final UX cleanup and feature polish.**

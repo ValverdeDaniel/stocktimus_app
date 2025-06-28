@@ -1,0 +1,144 @@
+📘 Screener Table Enhancement Plan – CSV Export, Sortable Columns, and Column Group Tabs
+=========================================================================================
+
+🎯 Objectives:
+--------------
+1. Enable export of currently visible columns to CSV
+2. Make table columns sortable
+3. Add column group tabs: Essentials, Simulation, Contract Details, Greeks, Market Data, All
+
+
+1️⃣ Export Visible Columns to CSV
+----------------------------------
+- Install dependency (already done):
+  npm install react-csv
+
+- Inside component:
+  const visibleColumns = COLUMN_GROUPS[selectedGroup];
+
+  const filteredData = results.map(row => {
+    const filteredRow = {};
+    visibleColumns.forEach(key => {
+      filteredRow[key] = row[key];
+    });
+    return filteredRow;
+  });
+
+- CSVLink JSX:
+  <CSVLink
+    data={filteredData}
+    headers={visibleColumns.map(col => ({ label: col, key: col }))}
+    filename={"screener_results.csv"}
+    className="bg-[#1DB954] text-white font-bold py-1 px-3 rounded mr-2"
+  >
+    Export CSV
+  </CSVLink>
+
+
+2️⃣ Make Columns Sortable
+--------------------------
+- Add sorting state:
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
+- Sorting handler:
+  const handleSort = (key) => {
+    setSortConfig(prev =>
+      prev.key === key
+        ? { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: 'asc' }
+    );
+  };
+
+- Memoized sorted results:
+  const sortedData = useMemo(() => {
+    if (!sortConfig.key) return filteredData;
+    return [...filteredData].sort((a, b) => {
+      const aVal = a[sortConfig.key];
+      const bVal = b[sortConfig.key];
+      return (aVal > bVal ? 1 : -1) * (sortConfig.direction === 'asc' ? 1 : -1);
+    });
+  }, [filteredData, sortConfig]);
+
+- Column header JSX:
+  <th onClick={() => handleSort(col)} className="cursor-pointer">
+    {col} {sortConfig.key === col && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+  </th>
+
+
+3️⃣ Column Group Tabs (Toggleable Sets)
+----------------------------------------
+
+a. Define column groups:
+-------------------------
+const COLUMN_GROUPS = {
+  All: [
+    "Ticker", "Option Type", "Expiration", "Current Price", "Strike", "Current Premium",
+    "Simulated Price", "Simulated Premium", "Stock Gain %", "Premium % Gain", "Days to Gain", "Simulated Equity",
+    "% OTM/ITM", "Days Until Expiration", "Allocated $", "Run Label",
+    "Delta", "Gamma", "Theta", "Vega", "Rho", "Implied Volatility",
+    "Bid", "Ask", "Last Premium", "Volume", "Bid Date", "Ask Date"
+  ],
+  Essentials: [
+    "Ticker", "Option Type", "Expiration", "Current Price", "Strike", "Current Premium"
+  ],
+  Simulation: [
+    "Simulated Price", "Simulated Premium", "Stock Gain %", "Premium % Gain", "Days to Gain", "Simulated Equity"
+  ],
+  ContractDetails: [
+    "% OTM/ITM", "Days Until Expiration", "Allocated $", "Run Label"
+  ],
+  Greeks: [
+    "Delta", "Gamma", "Theta", "Vega", "Rho", "Implied Volatility"
+  ],
+  MarketData: [
+    "Bid", "Ask", "Last Premium", "Volume", "Bid Date", "Ask Date"
+  ]
+};
+
+
+b. Tab UI:
+----------
+const [selectedGroup, setSelectedGroup] = useState("Essentials");
+
+<div className="flex space-x-2 mb-3">
+  {Object.keys(COLUMN_GROUPS).map(group => (
+    <button
+      key={group}
+      onClick={() => setSelectedGroup(group)}
+      className={`px-3 py-1 rounded ${
+        selectedGroup === group ? 'bg-[#1DB954] text-white' : 'bg-gray-700 text-white'
+      }`}
+    >
+      {group}
+    </button>
+  ))}
+</div>
+
+
+c. Use visible columns in render:
+---------------------------------
+const visibleColumns = COLUMN_GROUPS[selectedGroup];
+
+Filter both <th> and <td> elements using visibleColumns
+
+
+📦 Deliverables Summary
+-------------------------
+| Feature                        | Status     | Effort Level |
+|-------------------------------|------------|--------------|
+| Export filtered CSV           | ✅ Easy    | 🟢 Low       |
+| Sortable headers              | ✅ Done    | 🟡 Medium    |
+| Column group tab system       | 🛠️ Build  | 🔴 Medium-High |
+| Maintain export from current view | ✅ Link all above | 🟡 Medium |
+
+
+📌 Optional Add-ons (Future Enhancements)
+-----------------------------------------
+- PDF export for visible columns using jsPDF + autoTable
+- Responsive collapse for mobile
+- Tooltips for column headers (e.g. ROI, DTE)
+- Column visibility checkboxes (custom mode)
+
+
+End of Plan
+=========================================================================================

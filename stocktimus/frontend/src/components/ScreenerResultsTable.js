@@ -6,13 +6,13 @@ import ScreenerFilterControls from './ScreenerFilterControls';
 const COLUMN_GROUPS = {
   All: [
     "Ticker", "Option Type", "Expiration", "Underlying Price", "Strike", "Current Premium",
-    "Simulated Underlying", "Simulated Premium", "Underlying Gain %", "Premium % Gain", "Days to Gain", "Simulated Equity",
-    "% OTM/ITM", "Days Until Expiration", "Allocated Equity", "Run Label",
+    "Simulated Underlying", "Simulated Premium", "Underlying Gain %", "Premium % Gain", "Days to Gain", "Allocated Equity", "Simulated Equity",
+    "% OTM/ITM", "Days Until Expiration", "Run Label",
     "Delta", "Gamma", "Theta", "Vega", "Rho", "Implied Volatility",
     "Bid", "Ask", "Last Premium", "Volume", "Bid Date", "Ask Date"
   ],
   Simulation: [
-    "Simulated Underlying", "Simulated Premium", "Underlying Gain %", "Premium % Gain", "Days to Gain", "Simulated Equity"
+    "Simulated Underlying", "Simulated Premium", "Underlying Gain %", "Premium % Gain", "Days to Gain", "Allocated Equity", "Simulated Equity"
   ],
   "Contract Details": [
     "% OTM/ITM", "Days Until Expiration", "Allocated Equity", "Run Label"

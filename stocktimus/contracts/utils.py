@@ -223,9 +223,24 @@ def run_multiple_analyses(param_sets):
         'strike_pct', 'days_to_gain', 'stock_gain_pct', 'allocation'
     }
 
+    def cast_param(key, value):
+        try:
+            if key in ["strike_pct", "stock_gain_pct"]:
+                return float(value)
+            if key in ["days_until_exp", "days_to_gain", "allocation"]:
+                return int(float(value))  # handles strings like "32890" or "32890.0"
+            return value  # keep strings like 'hood' or 'call'
+        except Exception as e:
+            print(f"⚠️ Could not cast {key} with value {value}: {e}")
+            return value
+
     for params in param_sets:
         try:
-            clean_params = {k: v for k, v in params.items() if k in allowed_keys or k == 'label'}
+            clean_params = {
+                k: cast_param(k, v)
+                for k, v in params.items()
+                if k in allowed_keys or k == "label"
+            }
             label = clean_params.pop("label", "")
             allocation = clean_params.pop("allocation", None)
 
@@ -236,6 +251,7 @@ def run_multiple_analyses(param_sets):
             print(f"❌ Error analyzing scenario '{params.get('label', 'Unknown')}': {e}")
 
     return combined_df
+
 
 
 

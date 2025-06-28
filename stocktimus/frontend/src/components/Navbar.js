@@ -24,7 +24,6 @@ function Navbar() {
         >
           Watchlist
         </Link>
-        {/* Add more links here as needed */}
       </div>
     </nav>
   );

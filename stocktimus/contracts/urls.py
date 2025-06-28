@@ -9,6 +9,9 @@ urlpatterns = [
     # 🔍 Screener execution endpoint
     path('run-screener/', views.RunScreenerAPIView.as_view(), name='run-screener'),
 
+    path('run-watchlist/', views.RunWatchlistAPIView.as_view(), name='run-watchlist'),
+
+
     # 💾 Saved parameter endpoints
     path('saved-parameters/', views.SavedScreenerParameterListCreateAPIView.as_view(), name='saved-parameters'),
     path('saved-parameters/<int:pk>/', views.SavedScreenerParameterDeleteAPIView.as_view(), name='delete-parameter'),

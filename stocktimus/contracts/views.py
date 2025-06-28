@@ -15,7 +15,8 @@ from .serializers import (
     WatchlistEntrySerializer,
     SavedScreenerParameterSerializer
 )
-from .utils import run_multiple_analyses  # 👈 your screener logic
+from .utils.options_analysis import run_multiple_analyses  # ✅ updated import for screener
+from .utils.watchlist_analysis import whole_watchlist       # ✅ new import for watchlist
 
 import math  # 👈 needed for NaN/infinity checking
 
@@ -47,7 +48,7 @@ class WatchlistEntryList(generics.ListCreateAPIView):
 
 class SavedScreenerParameterListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = SavedScreenerParameterSerializer
-    queryset = SavedScreenerParameter.objects.all()  # ✅ makes sure GET works
+    queryset = SavedScreenerParameter.objects.all()  # ✅ ensures GET works
 
     def perform_create(self, serializer):
         if self.request.user.is_authenticated:
@@ -78,3 +79,22 @@ class RunScreenerAPIView(APIView):
             import traceback
             traceback.print_exc()
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class RunWatchlistAPIView(APIView):
+    def post(self, request):
+        try:
+            contracts = request.data.get("contracts", [])
+            if not contracts:
+                return Response({"error": "No contracts provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+            print("🚀 Incoming watchlist contracts:", contracts)
+
+            df = whole_watchlist(contracts)
+            cleaned_data = clean_floats(df.to_dict(orient="records")) if not df.empty else []
+
+            return Response(cleaned_data, status=status.HTTP_200_OK)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({"error": f"Server error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

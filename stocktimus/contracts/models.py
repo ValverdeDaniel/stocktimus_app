@@ -58,7 +58,7 @@ class SavedScreenerParameter(models.Model):
 
 
 class SavedContract(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)  # 🔥 Make user optional
     label = models.CharField(max_length=100, blank=True, default='')
     ticker = models.CharField(max_length=10)
     option_type = models.CharField(max_length=4)

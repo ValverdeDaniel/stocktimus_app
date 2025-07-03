@@ -1,7 +1,7 @@
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-
+from rest_framework.decorators import api_view
 from .models import (
     OptionContract,
     ScreenerInput,
@@ -18,9 +18,9 @@ from .serializers import (
     SavedContractSerializer,
     WatchlistGroupSerializer,
 )
-from .utils.options_analysis import run_multiple_analyses  # ✅ screener
-from .utils.watchlist_analysis import whole_watchlist      # ✅ watchlist
-import math  # 👈 needed for NaN/infinity checking
+from .utils.options_analysis import run_multiple_analyses
+from .utils.watchlist_analysis import whole_watchlist
+import math
 
 # --- Float Cleaning Utility ---
 def clean_floats(obj):
@@ -53,7 +53,7 @@ class SavedScreenerParameterListCreateAPIView(generics.ListCreateAPIView):
     queryset = SavedScreenerParameter.objects.all()
 
     def perform_create(self, serializer):
-        serializer.save(user=None)  # ✅ no auth → set user=None
+        serializer.save(user=None)
 
 class SavedScreenerParameterDeleteAPIView(generics.DestroyAPIView):
     serializer_class = SavedScreenerParameterSerializer
@@ -68,7 +68,6 @@ class RunScreenerAPIView(APIView):
             param_sets = request.data.get("param_sets", [])
             if not param_sets:
                 return Response({"error": "No param_sets provided."}, status=status.HTTP_400_BAD_REQUEST)
-
             print("🚀 Incoming param_sets:", param_sets)
             df = run_multiple_analyses(param_sets)
             cleaned_data = clean_floats(df.to_dict(orient="records"))
@@ -84,7 +83,6 @@ class RunWatchlistAPIView(APIView):
             contracts = request.data.get("contracts", [])
             if not contracts:
                 return Response({"error": "No contracts provided."}, status=status.HTTP_400_BAD_REQUEST)
-
             print("🚀 Incoming watchlist contracts:", contracts)
             df = whole_watchlist(contracts)
             cleaned_data = clean_floats(df.to_dict(orient="records")) if not df.empty else []
@@ -119,14 +117,27 @@ class WatchlistGroupListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = WatchlistGroupSerializer
 
     def get_queryset(self):
-        return WatchlistGroup.objects.all()  # ✅ global access
+        return WatchlistGroup.objects.all()
 
     def perform_create(self, serializer):
-        serializer.save(user=None)  # ✅ no auth → set user=None
+        serializer.save(user=None)
 
 class WatchlistGroupUpdateDeleteAPIView(generics.RetrieveUpdateDestroyAPIView):
     queryset = WatchlistGroup.objects.all()
     serializer_class = WatchlistGroupSerializer
+
+# --- Assign Contracts to Group ---
+@api_view(['POST'])
+def assign_contracts_to_group(request, group_id):
+    contract_ids = request.data.get('contract_ids', [])
+    try:
+        group = WatchlistGroup.objects.get(pk=group_id)
+    except WatchlistGroup.DoesNotExist:
+        return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    contracts = SavedContract.objects.filter(id__in=contract_ids)
+    group.contracts.add(*contracts)
+    return Response({'message': f'Added {contracts.count()} contracts to group {group.name}'}, status=status.HTTP_200_OK)
 
 # --- Bulk Simulation for Selected Contracts ---
 class RunBulkWatchlistAPIView(APIView):
@@ -139,6 +150,7 @@ class RunBulkWatchlistAPIView(APIView):
 
         contracts_data = [
             {
+                'tickers': [c.ticker],  # ensure tickers is always a list
                 'ticker': c.ticker,
                 'option_type': c.option_type,
                 'strike': c.strike,
@@ -150,5 +162,8 @@ class RunBulkWatchlistAPIView(APIView):
             for c in contracts
         ]
 
-        results = run_multiple_analyses(contracts_data)
-        return Response(results, status=200)
+        print("🚀 Running bulk analysis on contracts_data:", contracts_data)
+        df = run_multiple_analyses(contracts_data)
+        cleaned_data = clean_floats(df.to_dict(orient="records")) if not df.empty else []
+        return Response(cleaned_data, status=200)
+

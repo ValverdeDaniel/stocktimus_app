@@ -25,6 +25,9 @@ urlpatterns = [
     path('watchlist-groups/', views.WatchlistGroupListCreateAPIView.as_view(), name='watchlist-groups'),
     path('watchlist-groups/<int:pk>/', views.WatchlistGroupUpdateDeleteAPIView.as_view(), name='update-delete-group'),
 
+    # ✅ NEW: Assign contracts to a group
+    path('watchlist-groups/<int:group_id>/assign/', views.assign_contracts_to_group, name='assign-contracts-to-group'),
+
     # 🚀 Bulk watchlist simulation endpoint
     path('run-bulk-watchlist/', views.RunBulkWatchlistAPIView.as_view(), name='run-bulk-watchlist'),
 ]

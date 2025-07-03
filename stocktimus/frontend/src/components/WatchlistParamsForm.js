@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import WatchlistAssignGroupsModal from './WatchlistAssignGroupsModal';
 
-function WatchlistParamsForm({ handleAddToPending, groups = [], fetchGroups, fetchSavedContracts }) {
+function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, onSimulationComplete }) {
   const [contracts, setContracts] = useState([
     {
       ticker: 'AAPL',
@@ -14,8 +15,6 @@ function WatchlistParamsForm({ handleAddToPending, groups = [], fetchGroups, fet
   ]);
 
   const [assignModalVisible, setAssignModalVisible] = useState(false);
-  const [selectedGroups, setSelectedGroups] = useState([]);
-  const [newGroupName, setNewGroupName] = useState('');
 
   const handleContractChange = (index, e) => {
     const updated = [...contracts];
@@ -42,107 +41,45 @@ function WatchlistParamsForm({ handleAddToPending, groups = [], fetchGroups, fet
     setContracts((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSaveContract = async (contract) => {
+  const handleRunSimulator = async () => {
     try {
-      const sanitized = {
-        ...contract,
-        strike: parseFloat(contract.strike),
-        days_to_gain: parseInt(contract.days_to_gain),
-        number_of_contracts: parseInt(contract.number_of_contracts),
-        average_cost_per_contract: parseFloat(contract.average_cost_per_contract),
-        label: "",
-      };
+      const sanitizedContracts = contracts.map(c => ({
+        ...c,
+        strike: parseFloat(c.strike),
+        days_to_gain: parseInt(c.days_to_gain),
+        number_of_contracts: parseInt(c.number_of_contracts),
+        average_cost_per_contract: parseFloat(c.average_cost_per_contract),
+      }));
 
-      const response = await fetch('/api/saved-contracts/', {
+      const response = await fetch('/api/run-watchlist/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sanitized),
+        body: JSON.stringify({ contracts: sanitizedContracts }),
       });
-      if (!response.ok) throw new Error('Failed to save contract');
-      alert('Contract saved successfully!');
-      await fetchSavedContracts();
-    } catch (error) {
-      console.error('Error saving contract:', error);
-    }
-  };
 
-  const handleAssignAllToGroups = async () => {
-    try {
-      for (const contract of contracts) {
-        const sanitized = {
-          ...contract,
-          strike: parseFloat(contract.strike),
-          days_to_gain: parseInt(contract.days_to_gain),
-          number_of_contracts: parseInt(contract.number_of_contracts),
-          average_cost_per_contract: parseFloat(contract.average_cost_per_contract),
-          label: "",
-        };
+      if (!response.ok) throw new Error('Failed to run watchlist simulator');
+      const data = await response.json();
+      console.log('Simulation results:', data);
 
-        const response = await fetch('/api/saved-contracts/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(sanitized),
-        });
-        if (!response.ok) throw new Error('Failed to save contract');
-
-        const saved = await response.json();
-        const contractId = saved.id;
-
-        for (const groupId of selectedGroups) {
-          const assignRes = await fetch(`/api/watchlist-groups/${groupId}/assign/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contract_ids: [contractId] }),
-          });
-          if (!assignRes.ok) throw new Error(`Failed to assign to group ${groupId}`);
-        }
+      alert('Watchlist simulation run successfully!');
+      if (onSimulationComplete) {
+        onSimulationComplete(data);
       }
-
-      alert('All contracts saved and assigned successfully!');
-      setAssignModalVisible(false);
-      setSelectedGroups([]);
-      setNewGroupName('');
-      await fetchGroups();
-      await fetchSavedContracts();
     } catch (error) {
-      console.error('Error assigning contracts:', error);
+      console.error('Error running simulator:', error);
+      alert('Failed to run simulator.');
     }
-  };
-
-  const handleCreateNewGroup = async () => {
-    try {
-      if (!newGroupName.trim()) return alert('Group name cannot be empty!');
-      const response = await fetch('/api/watchlist-groups/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newGroupName }),
-      });
-      if (!response.ok) throw new Error('Failed to create new group');
-      alert('New Watchlist Contract Group created!');
-      setNewGroupName('');
-      await fetchGroups();
-    } catch (error) {
-      console.error('Error creating group:', error);
-    }
-  };
-
-  const handleRunSimulator = () => {
-    contracts.forEach(handleAddToPending);
   };
 
   return (
     <div className="card space-y-4 mb-6">
       <h3 className="heading-lg">📈 Watchlist Contracts</h3>
 
-      {/* === Editable Contract Forms === */}
       {contracts.map((contract, index) => (
         <div key={index} className="card space-y-3">
           <div className="flex justify-between items-center mb-2">
             <span className="font-bold text-primary">Contract {index + 1}</span>
-            <div className="flex gap-2">
-              <button onClick={() => handleSaveContract(contract)} className="btn-primary text-xs">Save</button>
-              <button onClick={() => handleRemoveContract(index)} className="btn-red text-xs">Remove</button>
-            </div>
+            <button onClick={() => handleRemoveContract(index)} className="btn-red text-xs">Remove</button>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -161,7 +98,6 @@ function WatchlistParamsForm({ handleAddToPending, groups = [], fetchGroups, fet
         </div>
       ))}
 
-      {/* === Controls === */}
       <button type="button" onClick={handleAddContract} className="btn-primary">
         + Add Contract
       </button>
@@ -175,49 +111,52 @@ function WatchlistParamsForm({ handleAddToPending, groups = [], fetchGroups, fet
         </button>
       </div>
 
-      {/* === Modal === */}
-      {assignModalVisible && (
-        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50">
-          <div className="bg-background p-6 rounded shadow-lg max-w-md w-full space-y-4">
-            <h3 className="heading-lg">Assign to Watchlist Contract Groups</h3>
+      <WatchlistAssignGroupsModal
+        isOpen={assignModalVisible}
+        onClose={() => setAssignModalVisible(false)}
+        groups={groups}
+        fetchGroups={fetchGroups}
+        onAssign={async (selectedGroupIds) => {
+          try {
+            for (const contract of contracts) {
+              const sanitized = {
+                ...contract,
+                strike: parseFloat(contract.strike),
+                days_to_gain: parseInt(contract.days_to_gain),
+                number_of_contracts: parseInt(contract.number_of_contracts),
+                average_cost_per_contract: parseFloat(contract.average_cost_per_contract),
+                label: "",
+              };
 
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {groups.map((g) => (
-                <label key={g.id} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedGroups.includes(String(g.id))}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setSelectedGroups((prev) =>
-                        checked
-                          ? [...prev, String(g.id)]
-                          : prev.filter((id) => id !== String(g.id))
-                      );
-                    }}
-                  />
-                  <span>{g.name}</span>
-                </label>
-              ))}
-            </div>
+              const response = await fetch('/api/saved-contracts/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(sanitized),
+              });
+              if (!response.ok) throw new Error('Failed to save contract');
 
-            <div className="flex gap-2 items-center">
-              <input
-                className="input flex-1"
-                placeholder="New Watchlist Contract Group"
-                value={newGroupName}
-                onChange={(e) => setNewGroupName(e.target.value)}
-              />
-              <button onClick={handleCreateNewGroup} className="btn-primary text-xs">Create</button>
-            </div>
+              const saved = await response.json();
+              const contractId = saved.id;
 
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setAssignModalVisible(false)} className="btn-secondary text-xs">Cancel</button>
-              <button onClick={handleAssignAllToGroups} className="btn-primary text-xs">Save</button>
-            </div>
-          </div>
-        </div>
-      )}
+              for (const groupId of selectedGroupIds) {
+                const assignRes = await fetch(`/api/watchlist-groups/${groupId}/assign/`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ contract_ids: [contractId] }),
+                });
+                if (!assignRes.ok) throw new Error(`Failed to assign contract ${contractId} to group ${groupId}`);
+              }
+            }
+            alert('Contracts saved and assigned successfully!');
+            setAssignModalVisible(false);
+            await fetchGroups();
+            await fetchSavedContracts();
+          } catch (error) {
+            console.error('Error assigning contracts:', error);
+            alert('Failed to assign contracts to groups.');
+          }
+        }}
+      />
     </div>
   );
 }

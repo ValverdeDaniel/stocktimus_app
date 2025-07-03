@@ -2,20 +2,14 @@ import React, { useState, useEffect } from 'react';
 import WatchlistParamsForm from './WatchlistParamsForm';
 import WatchlistTable from './WatchlistTable';
 import WatchlistFilterControls from './WatchlistFilterControls';
-import WatchlistSavedParams from './WatchlistSavedParams';
 import WatchlistGroups from './WatchlistGroups';
 
 function Watchlist() {
   const [watchlistItems, setWatchlistItems] = useState([]);
   const [selectedTickers, setSelectedTickers] = useState([]);
 
-  const [savedContracts, setSavedContracts] = useState([]);
-  const [selectedContracts, setSelectedContracts] = useState([]);
-
+  const [selectedContracts, setSelectedContracts] = useState([]); // still used for group-level actions
   const [groups, setGroups] = useState([]);
-
-  // ✅ Pending contracts state — holds contracts queued to run later.
-  const [pendingContracts, setPendingContracts] = useState([]);
 
   useEffect(() => {
     fetchSavedContracts();
@@ -26,8 +20,7 @@ function Watchlist() {
     try {
       const response = await fetch('/api/saved-contracts/');
       if (!response.ok) throw new Error('Failed to fetch saved contracts');
-      const data = await response.json();
-      setSavedContracts(Array.isArray(data) ? data : []);
+      await response.json(); // no longer storing the contracts in state
     } catch (error) {
       console.error('Error loading saved contracts:', error);
     }
@@ -41,27 +34,6 @@ function Watchlist() {
       setGroups(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading groups:', error);
-    }
-  };
-
-  const handleAddToWatchlist = async (params) => {
-    try {
-      const response = await fetch('/api/run-watchlist/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contracts: [params] }),
-      });
-      if (!response.ok) throw new Error('Failed to add watchlist item');
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        setWatchlistItems((prev) => [...prev, ...data]);
-      } else {
-        console.error('Unexpected response adding to watchlist:', data);
-        alert('Something went wrong adding to the watchlist.');
-      }
-    } catch (error) {
-      console.error('Error adding to watchlist:', error);
-      alert(`Failed to add to watchlist: ${error.message}`);
     }
   };
 
@@ -123,15 +95,6 @@ function Watchlist() {
     }
   };
 
-  const handleLoadContract = (param) => {
-    document.querySelectorAll('input').forEach((input) => {
-      const key = input.name;
-      if (key && param[key] !== undefined) {
-        input.value = param[key];
-      }
-    });
-  };
-
   const handleDeleteContract = async (id) => {
     try {
       const response = await fetch(`/api/saved-contracts/${id}/`, { method: 'DELETE' });
@@ -143,76 +106,15 @@ function Watchlist() {
     }
   };
 
-  // ✅ Add to pending queue instead of immediately running
-  const handleAddToPending = (params) => {
-    setPendingContracts((prev) => [...prev, params]);
-  };
-
-  // ✅ Run all pending contracts as a bulk operation
-  const handleRunAllPending = async () => {
-    if (pendingContracts.length === 0) return;
-    try {
-      const response = await fetch('/api/run-bulk-watchlist/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contracts: pendingContracts }),
-      });
-      if (!response.ok) throw new Error('Failed to run pending contracts');
-      const data = await response.json();
-      setWatchlistItems((prev) => [...prev, ...data]);
-      setPendingContracts([]); // clear pending queue on success
-    } catch (error) {
-      console.error('Error running pending contracts:', error);
-    }
-  };
-
-  // ✅ Remove a pending contract by index
-  const handleRemovePending = (index) => {
-    setPendingContracts((prev) => prev.filter((_, i) => i !== index));
-  };
-
   return (
     <div className="p-4 text-text">
       <h2 className="heading-xl">📈 Watchlist Tool</h2>
 
       <WatchlistParamsForm
-        onAdd={handleAddToWatchlist}
-        handleAddToPending={handleAddToPending}
         groups={groups}
         fetchGroups={fetchGroups}
         fetchSavedContracts={fetchSavedContracts}
-      />
-
-      {pendingContracts.length > 0 && (
-        <div className="space-y-2 mb-4">
-          <h4 className="heading-lg">Pending Contracts</h4>
-          {pendingContracts.map((c, i) => (
-            <div key={i} className="card flex justify-between items-center">
-              <span className="text-sm">{c.ticker} {c.option_type} {c.strike}</span>
-              <button
-                onClick={() => handleRemovePending(i)}
-                className="btn-red text-xs"
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-          <button onClick={handleRunAllPending} className="btn-primary">
-            Run All Pending
-          </button>
-        </div>
-      )}
-
-      <WatchlistSavedParams
-        savedParams={savedContracts}
-        selectedContracts={selectedContracts}
-        setSelectedContracts={setSelectedContracts}
-        handleRunSelected={handleRunSelected}
-        onLoad={handleLoadContract}
-        onDelete={handleDeleteContract}
-        groups={groups}
-        fetchGroups={fetchGroups}
-        fetchSavedContracts={fetchSavedContracts}
+        onSimulationComplete={(results) => setWatchlistItems(results)}
       />
 
       <WatchlistGroups

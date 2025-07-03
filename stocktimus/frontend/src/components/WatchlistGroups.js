@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 
-function WatchlistGroups({ groups, onRunGroup, fetchGroups }) {
+function WatchlistGroups({ groups, onRunGroup, fetchGroups, selectedContracts, setSelectedContracts, handleRunSelected, handleBulkDelete, handleBulkAssign }) {
   const [newGroupName, setNewGroupName] = useState('');
+  const [selectedGroups, setSelectedGroups] = useState([]);
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) {
@@ -17,7 +18,7 @@ function WatchlistGroups({ groups, onRunGroup, fetchGroups }) {
       if (!response.ok) throw new Error('Failed to create group');
       alert('Group created successfully!');
       setNewGroupName('');
-      await fetchGroups();  // 🔥 refresh groups list
+      await fetchGroups();
     } catch (error) {
       console.error('Error creating group:', error);
     }
@@ -27,7 +28,7 @@ function WatchlistGroups({ groups, onRunGroup, fetchGroups }) {
     <div className="mt-8">
       <h3 className="heading-lg">📂 Watchlist Groups</h3>
 
-      {/* 🔥 Group creation form */}
+      {/* Group creation form */}
       <div className="flex gap-2 mb-4">
         <input
           className="input flex-1"
@@ -40,7 +41,6 @@ function WatchlistGroups({ groups, onRunGroup, fetchGroups }) {
         </button>
       </div>
 
-      {/* Existing groups */}
       <div className="space-y-4">
         {groups.map((group) => (
           <div key={group.id} className="card card-hover">
@@ -55,16 +55,48 @@ function WatchlistGroups({ groups, onRunGroup, fetchGroups }) {
             </div>
 
             {group.contracts.length > 0 ? (
-              <div className="text-sm text-muted pl-1">
+              <div className="text-sm text-muted pl-1 space-y-1">
                 {group.contracts.map((c) => (
-                  <div key={c.id}>
-                    • {c.ticker} {c.option_type} {c.strike}
+                  <div key={c.id} className="flex items-center gap-2">
+                    {/* ✅ Checkbox to select contract for bulk actions */}
+                    <input
+                      type="checkbox"
+                      checked={selectedContracts.includes(c.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedContracts((prev) => [...prev, c.id]);
+                        } else {
+                          setSelectedContracts((prev) => prev.filter((id) => id !== c.id));
+                        }
+                      }}
+                    />
+                    <span className="text-sm">
+                      {c.ticker} {c.option_type} {c.strike}
+                    </span>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="text-sm text-muted pl-1 italic">
                 (No contracts assigned)
+              </div>
+            )}
+
+            {/* ✅ Group-level bulk toolbar: shows when contracts are selected */}
+            {selectedContracts.length > 0 && (
+              <div className="flex gap-2 mt-2">
+                <button onClick={handleRunSelected} className="btn-primary">Run Selected</button>
+                <button onClick={handleBulkDelete} className="btn-red">Delete Selected</button>
+                <select
+                  className="input flex-1"
+                  multiple
+                  onChange={(e) => setSelectedGroups([...e.target.selectedOptions].map(opt => opt.value))}
+                >
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+                <button onClick={() => handleBulkAssign(selectedGroups)} className="btn-primary">Assign to Groups</button>
               </div>
             )}
           </div>

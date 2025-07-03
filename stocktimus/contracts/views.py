@@ -150,7 +150,6 @@ class RunBulkWatchlistAPIView(APIView):
 
         contracts_data = [
             {
-                'tickers': [c.ticker],  # ensure tickers is always a list
                 'ticker': c.ticker,
                 'option_type': c.option_type,
                 'strike': c.strike,
@@ -162,8 +161,9 @@ class RunBulkWatchlistAPIView(APIView):
             for c in contracts
         ]
 
-        print("🚀 Running bulk analysis on contracts_data:", contracts_data)
-        df = run_multiple_analyses(contracts_data)
+        print("🚀 Running bulk watchlist simulation on contracts_data:", contracts_data)
+        df = whole_watchlist(contracts_data)  # ✅ use your watchlist logic here
         cleaned_data = clean_floats(df.to_dict(orient="records")) if not df.empty else []
         return Response(cleaned_data, status=200)
+
 

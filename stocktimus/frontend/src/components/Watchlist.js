@@ -14,6 +14,9 @@ function Watchlist() {
 
   const [groups, setGroups] = useState([]);
 
+  // ✅ Pending contracts state — holds contracts queued to run later.
+  const [pendingContracts, setPendingContracts] = useState([]);
+
   useEffect(() => {
     fetchSavedContracts();
     fetchGroups();
@@ -140,16 +143,65 @@ function Watchlist() {
     }
   };
 
+  // ✅ Add to pending queue instead of immediately running
+  const handleAddToPending = (params) => {
+    setPendingContracts((prev) => [...prev, params]);
+  };
+
+  // ✅ Run all pending contracts as a bulk operation
+  const handleRunAllPending = async () => {
+    if (pendingContracts.length === 0) return;
+    try {
+      const response = await fetch('/api/run-bulk-watchlist/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contracts: pendingContracts }),
+      });
+      if (!response.ok) throw new Error('Failed to run pending contracts');
+      const data = await response.json();
+      setWatchlistItems((prev) => [...prev, ...data]);
+      setPendingContracts([]); // clear pending queue on success
+    } catch (error) {
+      console.error('Error running pending contracts:', error);
+    }
+  };
+
+  // ✅ Remove a pending contract by index
+  const handleRemovePending = (index) => {
+    setPendingContracts((prev) => prev.filter((_, i) => i !== index));
+  };
+
   return (
     <div className="p-4 text-text">
       <h2 className="heading-xl">📈 Watchlist Tool</h2>
 
       <WatchlistParamsForm
         onAdd={handleAddToWatchlist}
+        handleAddToPending={handleAddToPending}
         groups={groups}
         fetchGroups={fetchGroups}
         fetchSavedContracts={fetchSavedContracts}
       />
+
+      {pendingContracts.length > 0 && (
+        <div className="space-y-2 mb-4">
+          <h4 className="heading-lg">Pending Contracts</h4>
+          {pendingContracts.map((c, i) => (
+            <div key={i} className="card flex justify-between items-center">
+              <span className="text-sm">{c.ticker} {c.option_type} {c.strike}</span>
+              <button
+                onClick={() => handleRemovePending(i)}
+                className="btn-red text-xs"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <button onClick={handleRunAllPending} className="btn-primary">
+            Run All Pending
+          </button>
+        </div>
+      )}
 
       <WatchlistSavedParams
         savedParams={savedContracts}
@@ -167,6 +219,30 @@ function Watchlist() {
         groups={groups}
         onRunGroup={handleRunGroup}
         fetchGroups={fetchGroups}
+        selectedContracts={selectedContracts}
+        setSelectedContracts={setSelectedContracts}
+        handleRunSelected={handleRunSelected}
+        handleBulkDelete={handleDeleteContract}
+        handleBulkAssign={async (selectedGroupIds) => {
+          try {
+            for (const contractId of selectedContracts) {
+              for (const groupId of selectedGroupIds) {
+                const response = await fetch(`/api/watchlist-groups/${groupId}/assign/`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ contract_ids: [contractId] }),
+                });
+                if (!response.ok) throw new Error(`Failed to assign contract ${contractId} to group ${groupId}`);
+              }
+            }
+            alert('Contracts assigned successfully!');
+            setSelectedContracts([]);
+            await fetchGroups();
+            await fetchSavedContracts();
+          } catch (error) {
+            console.error('Error bulk assigning:', error);
+          }
+        }}
       />
 
       <WatchlistFilterControls

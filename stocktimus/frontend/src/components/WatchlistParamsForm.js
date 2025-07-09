@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import WatchlistAssignGroupsModal from './WatchlistAssignGroupsModal';
-import SearchableTicker from './SearchableTicker'; // <-- your new component
+import SearchableTicker from './SearchableTicker';
 
 function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, onSimulationComplete }) {
   const [contracts, setContracts] = useState([
@@ -60,7 +60,6 @@ function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, on
 
       if (!response.ok) throw new Error('Failed to run watchlist simulator');
       const data = await response.json();
-      console.log('Simulation results:', data);
 
       alert('Watchlist simulation run successfully!');
       if (onSimulationComplete) {
@@ -86,28 +85,33 @@ function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, on
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {Object.keys(contract).map((key) => (
               <div key={key}>
+                <label className="filter-heading">{key.replace(/_/g, ' ').toUpperCase()}</label>
                 {key === 'ticker' ? (
-                  <>
-                    <label className="filter-heading">TICKER</label>
-                    <SearchableTicker
-                      value={contract.ticker ? { label: contract.ticker, value: contract.ticker } : null}
-                      onChange={(selected) => {
-                        const updated = [...contracts];
-                        updated[index].ticker = selected?.value || '';
-                        setContracts(updated);
-                      }}
-                    />
-                  </>
+                  <SearchableTicker
+                    value={contract.ticker ? { label: contract.ticker, value: contract.ticker } : null}
+                    onChange={(selected) => {
+                      const updated = [...contracts];
+                      updated[index].ticker = selected?.value || '';
+                      setContracts(updated);
+                    }}
+                  />
+                ) : key === 'option_type' ? (
+                  <select
+                    name={key}
+                    value={contract[key]}
+                    onChange={(e) => handleContractChange(index, e)}
+                    className="input"
+                  >
+                    <option value="call">Call</option>
+                    <option value="put">Put</option>
+                  </select>
                 ) : (
-                  <>
-                    <label className="filter-heading">{key.replace(/_/g, ' ').toUpperCase()}</label>
-                    <input
-                      className="input"
-                      name={key}
-                      value={contract[key]}
-                      onChange={(e) => handleContractChange(index, e)}
-                    />
-                  </>
+                  <input
+                    className="input"
+                    name={key}
+                    value={contract[key]}
+                    onChange={(e) => handleContractChange(index, e)}
+                  />
                 )}
               </div>
             ))}
@@ -150,8 +154,8 @@ function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, on
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(sanitized),
               });
-              if (!response.ok) throw new Error('Failed to save contract');
 
+              if (!response.ok) throw new Error('Failed to save contract');
               const saved = await response.json();
               const contractId = saved.id;
 
@@ -164,6 +168,7 @@ function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, on
                 if (!assignRes.ok) throw new Error(`Failed to assign contract ${contractId} to group ${groupId}`);
               }
             }
+
             alert('Contracts saved and assigned successfully!');
             setAssignModalVisible(false);
             await fetchGroups();

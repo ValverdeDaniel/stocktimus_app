@@ -29,6 +29,17 @@ If successful, you’ll see a message like:
    "Starting development server at http://127.0.0.1:8000/"
 
 You're now ready to build!
+
+
+
+-----------------------------------------------------------
+
+open command line not powershell
+
+C:\Users\Daniel2\OneDrive\Desktop\devprojects\shadowstocks\stocktimus\frontend>npm start
+
+
+
 ============================================================
 
 

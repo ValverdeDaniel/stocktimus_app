@@ -1,0 +1,198 @@
+=== Developer Task Brief: Watchlist Contract Enhancements ===
+
+Objective:
+----------
+Enhance the Watchlist contract form and group display system to:
+1. Improve user data entry and validations.
+2. Track time-sensitive fields like cost and days-to-gain over time.
+3. Enable resetting and refreshing of contract data.
+4. Ensure consistent and complete contract details appear in watchlist groups.
+
+============================
+Frontend: watchlistParamsForm.js
+============================
+
+✅ INPUT CHANGES:
+
+- Ticker (Required):
+  - Convert to a searchable dropdown input (e.g., react-select).
+  - Each option should show both ticker and company name (e.g., "AAPL — Apple Inc.").
+
+- Option Type (Required):
+  - Replace text input with a dropdown.
+  - Options: "Call", "Put".
+
+- Strike (Required):
+  - Input type should be numeric with validation for positive decimal values.
+
+- Days to Gain (Required):
+  - Input type: number.
+  - Required.
+  - Must be a positive whole number.
+
+- Number of Contracts (Optional):
+  - Default value should be 1 if left blank.
+
+- Average Cost Per Contract (Optional):
+  - If left blank, backend should fill in the value using the current market premium.
+
+✅ FORM HANDLING:
+
+- Sanitize and submit the following fields:
+  {
+    ticker,
+    option_type,
+    strike,
+    expiration,
+    days_to_gain,
+    number_of_contracts,
+    average_cost_per_contract
+  }
+
+============================
+Frontend: WatchlistGroups.js
+============================
+
+✅ CONTRACT DISPLAY CHANGES:
+
+For each contract under a group, update the display to include:
+
+- Ticker
+- Option Type (call/put)
+- Strike Price
+- Expiration Date
+- Number of Contracts
+- Initial Cost Per Contract
+- Average Cost Per Contract (if different)
+- First Added Date
+- Last Reset Date
+- Last Refresh Date
+- Days Remaining: Show `dynamic_days_to_gain` as a countdown
+
+✅ STRUCTURED CONTRACT DISPLAY EXAMPLE:
+
+Replace:
+  <span>{c.ticker} {c.option_type} {c.strike}</span>
+
+With something like:
+  <div className="text-sm leading-snug">
+    <div><strong>{c.ticker}</strong> {c.option_type.toUpperCase()} @ {c.strike}</div>
+    <div className="text-xs text-muted">
+      Exp: {c.expiration} • Qty: {c.number_of_contracts} • Cost: ${c.initial_cost_per_contract}
+    </div>
+    <div className="text-xs text-muted">
+      Added: {c.first_added_to_group_date?.slice(0, 10)} • Last Reset: {c.last_reset_date?.slice(0, 10)}
+    </div>
+    <div className="text-xs text-muted">
+      Days Remaining: {c.dynamic_days_to_gain} • Last Refresh: {c.last_refresh_date?.slice(0, 10)}
+    </div>
+  </div>
+
+✅ ACTION BUTTONS (OPTIONAL):
+
+Add to each contract:
+- "Reset Countdown" → triggers PATCH /reset-days/
+- "Refresh Data" → triggers PATCH /refresh/
+
+✅ EXAMPLE BUTTONS:
+
+  <div className="flex gap-2 mt-1">
+    <button onClick={() => handleResetDays(c.id)} className="btn-blue text-xs">Reset Countdown</button>
+    <button onClick={() => handleRefresh(c.id)} className="btn-secondary text-xs">Refresh</button>
+  </div>
+
+✅ HANDLERS TO ADD:
+
+  const handleResetDays = async (contractId) => {
+    await fetch(`/api/saved-contracts/${contractId}/reset-days/`, { method: 'PATCH' });
+    await fetchGroups(); // refresh UI
+  };
+
+  const handleRefresh = async (contractId) => {
+    await fetch(`/api/saved-contracts/${contractId}/refresh/`, { method: 'PATCH' });
+    await fetchGroups(); // refresh UI
+  };
+
+============================
+Backend: models.py (SavedContract)
+============================
+
+✅ UPDATED MODEL:
+
+class SavedContract(models.Model):
+    ticker = models.CharField(max_length=10)
+    option_type = models.CharField(max_length=10)
+    strike = models.FloatField()
+    expiration = models.DateField()
+
+    number_of_contracts = models.IntegerField(default=1)
+    average_cost_per_contract = models.FloatField(null=True, blank=True)
+    initial_cost_per_contract = models.FloatField()
+
+    initial_days_to_gain = models.IntegerField()
+
+    # Timeline fields
+    first_added_to_group_date = models.DateTimeField(auto_now_add=True)
+    last_reset_date = models.DateTimeField(auto_now_add=True)
+    last_refresh_date = models.DateTimeField(auto_now=True)
+
+    def dynamic_days_to_gain(self):
+        from django.utils import timezone
+        if not self.last_reset_date or not self.initial_days_to_gain:
+            return None
+        elapsed = (timezone.now().date() - self.last_reset_date.date()).days
+        return max(0, self.initial_days_to_gain - elapsed)
+
+============================
+Backend: views.py
+============================
+
+✅ /api/saved-contracts/ [POST]
+
+- Accept sanitized input fields.
+- If average_cost_per_contract is missing:
+  → Fetch current premium using internal pricing logic.
+  → Set it as both average_cost_per_contract and initial_cost_per_contract.
+- Set first_added_to_group_date = now()
+- Set last_reset_date = now()
+
+✅ /api/watchlist-groups/ [GET]
+
+- Return full contract data including:
+  - dynamic_days_to_gain (computed)
+  - first_added_to_group_date
+  - last_reset_date
+  - last_refresh_date
+  - initial_cost_per_contract
+
+✅ PATCH /api/saved-contracts/<id>/reset-days/
+
+- Resets last_reset_date = now()
+- Reinitializes countdown for dynamic_days_to_gain
+
+✅ PATCH /api/saved-contracts/<id>/refresh/
+
+- Re-fetches live contract data (e.g., pricing) from external source
+- Updates average_cost_per_contract and last_refresh_date
+
+============================
+Summary of Deliverables
+============================
+
+[ ] watchlistParamsForm.js:
+    - Dropdowns and validations for inputs
+    - Default behavior for missing fields
+
+[ ] WatchlistGroups.js:
+    - Expanded contract display with full metadata
+    - Countdown and refresh/reset buttons
+    - API PATCH handlers
+
+[ ] models.py:
+    - Add new date and cost fields
+    - Add `dynamic_days_to_gain` logic
+
+[ ] views.py:
+    - Handle automatic cost fetching
+    - New PATCH endpoints
+    - Updated serializers for full output

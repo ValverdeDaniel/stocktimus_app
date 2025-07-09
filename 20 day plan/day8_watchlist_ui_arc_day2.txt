@@ -1,0 +1,163 @@
+=== 🗓️ Day 2: Backend Logic — Reset, Refresh & Cost Auto-Fill ===
+
+🎯 GOALS:
+---------
+1. Implement two PATCH endpoints:
+   - /api/saved-contracts/<id>/reset-days/ — resets countdown
+   - /api/saved-contracts/<id>/refresh/ — updates cost + refresh timestamp
+
+2. Update the POST logic for /api/saved-contracts/ to:
+   - Automatically fetch and store a cost if the user didn’t provide one
+
+==============================
+🧠 WHY THESE CHANGES?
+==============================
+- Users may want to restart their countdown without re-adding a contract.
+- We want contracts to always have a valid cost, even if they leave it blank.
+- Refreshing ensures prices are not stale over time (e.g. next-day or next-week updates).
+
+==============================
+🛠️ PART 1: Create the Reset and Refresh Views
+==============================
+
+Add these functions to your views.py:
+
+--------------------------------------------------
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework import status
+from django.utils import timezone
+from .models import SavedContract
+
+
+@api_view(['PATCH'])
+def reset_days_to_gain(request, contract_id):
+    try:
+        contract = SavedContract.objects.get(id=contract_id)
+        contract.last_reset_date = timezone.now()
+        contract.save()
+        return Response({"message": "Countdown reset successfully."})
+    except SavedContract.DoesNotExist:
+        return Response({"error": "Contract not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['PATCH'])
+def refresh_contract_data(request, contract_id):
+    try:
+        contract = SavedContract.objects.get(id=contract_id)
+        
+        # TODO: Replace this with a real API call to pricing service
+        simulated_premium = 4.25
+
+        contract.average_cost_per_contract = simulated_premium
+        contract.last_refresh_date = timezone.now()
+        contract.save()
+
+        return Response({"message": "Contract refreshed successfully."})
+    except SavedContract.DoesNotExist:
+        return Response({"error": "Contract not found."}, status=status.HTTP_404_NOT_FOUND)
+--------------------------------------------------
+
+==============================
+🛠️ PART 2: Add Routes to urls.py
+==============================
+
+In your app’s urls.py, add:
+
+--------------------------------------------------
+from .views import reset_days_to_gain, refresh_contract_data
+
+urlpatterns = [
+    # ... existing paths
+    path('api/saved-contracts/<int:contract_id>/reset-days/', reset_days_to_gain),
+    path('api/saved-contracts/<int:contract_id>/refresh/', refresh_contract_data),
+]
+--------------------------------------------------
+
+==============================
+🛠️ PART 3: Auto-Fill Cost in POST Logic
+==============================
+
+In your SavedContractListCreateAPIView, override the perform_create() method:
+
+--------------------------------------------------
+class SavedContractListCreateAPIView(generics.ListCreateAPIView):
+    serializer_class = SavedContractSerializer
+
+    def get_queryset(self):
+        return SavedContract.objects.all()
+
+    def perform_create(self, serializer):
+        data = serializer.validated_data
+        cost = data.get("average_cost_per_contract")
+
+        if cost is None:
+            # TODO: Replace this with real-time pricing logic
+            cost = 4.25
+
+        serializer.save(
+            user=None,
+            initial_cost_per_contract=cost,
+            average_cost_per_contract=cost
+        )
+--------------------------------------------------
+
+🧠 This ensures:
+- A cost is always assigned
+- The same cost is recorded in both average_cost_per_contract and initial_cost_per_contract
+
+==============================
+🔬 TESTING INSTRUCTIONS
+==============================
+
+✅ 1. Test Countdown Reset
+
+Request:
+--------------------------------------------------
+PATCH /api/saved-contracts/1/reset-days/
+--------------------------------------------------
+
+Expected Response:
+--------------------------------------------------
+{ "message": "Countdown reset successfully." }
+--------------------------------------------------
+
+✅ 2. Test Cost Refresh
+
+Request:
+--------------------------------------------------
+PATCH /api/saved-contracts/1/refresh/
+--------------------------------------------------
+
+Expected Response:
+--------------------------------------------------
+{ "message": "Contract refreshed successfully." }
+--------------------------------------------------
+
+✅ 3. Test Auto-Cost on Contract Creation
+
+POST body:
+--------------------------------------------------
+{
+  "ticker": "AAPL",
+  "option_type": "call",
+  "strike": 150,
+  "expiration": "2025-12-19",
+  "initial_days_to_gain": 30,
+  "number_of_contracts": 1
+}
+--------------------------------------------------
+
+Expected Outcome:
+- Contract is saved
+- average_cost_per_contract = 4.25
+- initial_cost_per_contract = 4.25
+
+==============================
+✅ Day 2 Complete!
+==============================
+
+Next: Day 3 will add support in the React frontend for:
+- Displaying the new contract fields
+- Buttons for Reset / Refresh per contract
+- Countdown rendering in WatchlistGroups.js

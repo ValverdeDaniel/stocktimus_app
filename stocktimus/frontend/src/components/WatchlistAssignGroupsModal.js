@@ -10,9 +10,11 @@ export default function WatchlistAssignGroupsModal({
 }) {
   const [selectedGroups, setSelectedGroups] = useState([]);
   const [newGroupName, setNewGroupName] = useState('');
+  const [assignMode, setAssignMode] = useState('append'); // 👈 append or replace
 
   useEffect(() => {
     setSelectedGroups([]); // reset selection each time modal opens
+    setAssignMode('append'); // default to append each time modal opens
   }, [isOpen]);
 
   const handleCreateGroup = async () => {
@@ -38,7 +40,7 @@ export default function WatchlistAssignGroupsModal({
   };
 
   const handleSave = async () => {
-    await onAssign(selectedGroups);
+    await onAssign(selectedGroups, assignMode); // 👈 pass mode to parent
     setSelectedGroups([]);
     onClose();
   };
@@ -78,6 +80,32 @@ export default function WatchlistAssignGroupsModal({
               {group.name}
             </label>
           ))}
+        </div>
+
+        <div className="flex flex-col gap-2 mt-2">
+          <label className="text-xs text-muted">Assignment Mode:</label>
+          <div className="flex gap-4 items-center">
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="radio"
+                name="assignMode"
+                value="append"
+                checked={assignMode === 'append'}
+                onChange={() => setAssignMode('append')}
+              />
+              Append
+            </label>
+            <label className="flex items-center gap-1 text-sm">
+              <input
+                type="radio"
+                name="assignMode"
+                value="replace"
+                checked={assignMode === 'replace'}
+                onChange={() => setAssignMode('replace')}
+              />
+              Replace
+            </label>
+          </div>
         </div>
 
         <div className="flex gap-2 mt-2">

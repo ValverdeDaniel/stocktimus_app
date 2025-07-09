@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import WatchlistAssignGroupsModal from './WatchlistAssignGroupsModal';
+import SearchableTicker from './SearchableTicker'; // <-- your new component
 
 function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, onSimulationComplete }) {
   const [contracts, setContracts] = useState([
@@ -85,13 +86,29 @@ function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, on
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {Object.keys(contract).map((key) => (
               <div key={key}>
-                <label className="filter-heading">{key.replace(/_/g, ' ').toUpperCase()}</label>
-                <input
-                  className="input"
-                  name={key}
-                  value={contract[key]}
-                  onChange={(e) => handleContractChange(index, e)}
-                />
+                {key === 'ticker' ? (
+                  <>
+                    <label className="filter-heading">TICKER</label>
+                    <SearchableTicker
+                      value={contract.ticker ? { label: contract.ticker, value: contract.ticker } : null}
+                      onChange={(selected) => {
+                        const updated = [...contracts];
+                        updated[index].ticker = selected?.value || '';
+                        setContracts(updated);
+                      }}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <label className="filter-heading">{key.replace(/_/g, ' ').toUpperCase()}</label>
+                    <input
+                      className="input"
+                      name={key}
+                      value={contract[key]}
+                      onChange={(e) => handleContractChange(index, e)}
+                    />
+                  </>
+                )}
               </div>
             ))}
           </div>

@@ -4,6 +4,7 @@ import { runScreenerBackend } from '../services/api';
 import ScreenerScenarioForm from './ScreenerScenarioForm';
 import ScreenerSavedParams from './ScreenerSavedParams';
 import ScreenerResultsTable from './ScreenerResultsTable';
+import StandardLoader from './StandardLoader'; // ✅ Add this import
 
 function ScreenerResults() {
   const [paramSets, setParamSets] = useState([
@@ -141,16 +142,15 @@ function ScreenerResults() {
           >
             + Add Scenario
           </button>
-          <button
-            type="submit"
-            className="btn-primary"
-          >
+          <button type="submit" className="btn-primary">
             Run Screener
           </button>
         </div>
       </form>
 
-      {loading && <p className="text-muted">Loading...</p>}
+      {/* ✅ Show loader */}
+      <StandardLoader show={loading} />
+
       {error && <p className="text-error">{error}</p>}
 
       <ScreenerSavedParams

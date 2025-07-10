@@ -3,6 +3,11 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from django.utils import timezone
+from django.core.cache import cache
+from django.conf import settings
+from django.http import JsonResponse
+import requests
+import math
 
 from .models import (
     OptionContract,
@@ -11,7 +16,7 @@ from .models import (
     SavedScreenerParameter,
     SavedContract,
     WatchlistGroup,
-    Ticker,  # ✅ Add this
+    Ticker,
 )
 
 from .serializers import (
@@ -21,12 +26,11 @@ from .serializers import (
     SavedScreenerParameterSerializer,
     SavedContractSerializer,
     WatchlistGroupSerializer,
-    TickerSerializer,  # ✅ Add this
+    TickerSerializer,
 )
 
 from .utils.options_analysis import run_multiple_analyses
 from .utils.watchlist_analysis import whole_watchlist
-import math
 
 
 # --- Float Cleaning Utility ---
@@ -41,6 +45,7 @@ def clean_floats(obj):
         return obj
     else:
         return obj
+
 
 # --- Generic Model-Based Views ---
 class OptionContractList(generics.ListCreateAPIView):
@@ -67,6 +72,7 @@ class SavedScreenerParameterDeleteAPIView(generics.DestroyAPIView):
 
     def get_queryset(self):
         return SavedScreenerParameter.objects.all()
+
 
 # --- Screener & Watchlist Execution ---
 class RunScreenerAPIView(APIView):
@@ -99,6 +105,7 @@ class RunWatchlistAPIView(APIView):
             traceback.print_exc()
             return Response({"error": f"Server error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 # --- Saved Contracts: Create, Delete, Reset, Refresh ---
 class SavedContractListCreateAPIView(generics.ListCreateAPIView):
     serializer_class = SavedContractSerializer
@@ -111,8 +118,7 @@ class SavedContractListCreateAPIView(generics.ListCreateAPIView):
         cost = data.get("average_cost_per_contract")
 
         if cost is None:
-            # TODO: Replace this with real pricing logic
-            cost = 4.25
+            cost = 4.25  # Placeholder
 
         serializer.save(
             user=None,
@@ -145,14 +151,14 @@ def reset_days_to_gain(request, contract_id):
 def refresh_contract_data(request, contract_id):
     try:
         contract = SavedContract.objects.get(id=contract_id)
-        # TODO: Replace this with live premium data (e.g. from EODHD or Polygon)
-        simulated_premium = 4.25
+        simulated_premium = 4.25  # Replace with live data later
         contract.average_cost_per_contract = simulated_premium
         contract.last_refresh_date = timezone.now()
         contract.save()
         return Response({"message": "Contract refreshed successfully."})
     except SavedContract.DoesNotExist:
         return Response({"error": "Contract not found."}, status=status.HTTP_404_NOT_FOUND)
+
 
 # --- Watchlist Groups CRUD ---
 class WatchlistGroupListCreateAPIView(generics.ListCreateAPIView):
@@ -168,14 +174,15 @@ class WatchlistGroupUpdateDeleteAPIView(generics.RetrieveUpdateDestroyAPIView):
     queryset = WatchlistGroup.objects.all()
     serializer_class = WatchlistGroupSerializer
 
-# --- Assign Contracts to Group with append/replace support ---
+
+# --- Assign Contracts to Group ---
 @api_view(['POST'])
 def assign_contracts_to_group(request, group_id):
     contract_ids = request.data.get('contract_ids', [])
-    mode = request.data.get('mode', 'append')  # default to append
+    mode = request.data.get('mode', 'append')
 
     if mode not in ['append', 'replace']:
-        return Response({'error': 'Invalid mode: must be "append" or "replace"'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': 'Invalid mode'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         group = WatchlistGroup.objects.get(pk=group_id)
@@ -183,9 +190,8 @@ def assign_contracts_to_group(request, group_id):
         return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
 
     contracts = SavedContract.objects.filter(id__in=contract_ids)
-
     if not contracts.exists():
-        return Response({'error': 'No valid contracts found for assignment.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': 'No valid contracts found.'}, status=400)
 
     if mode == 'replace':
         group.contracts.set(contracts)
@@ -199,9 +205,10 @@ def assign_contracts_to_group(request, group_id):
         'mode': mode,
         'group_id': group.id,
         'assigned_contract_ids': list(contracts.values_list('id', flat=True)),
-    }, status=status.HTTP_200_OK)
+    }, status=200)
 
-# --- Bulk Simulation for Selected Contracts ---
+
+# --- Bulk Simulation Endpoint ---
 class RunBulkWatchlistAPIView(APIView):
     def post(self, request):
         contract_ids = request.data.get('contract_ids', [])
@@ -223,28 +230,25 @@ class RunBulkWatchlistAPIView(APIView):
             for c in contracts
         ]
 
-        print("🚀 Running bulk watchlist simulation on contracts_data:", contracts_data)
         df = whole_watchlist(contracts_data)
         cleaned_data = clean_floats(df.to_dict(orient="records")) if not df.empty else []
         return Response(cleaned_data, status=200)
 
 
+# --- Ticker Search ---
 class TickerSearchAPIView(generics.ListAPIView):
     serializer_class = TickerSerializer
 
     def get_queryset(self):
         search = self.request.query_params.get('search', '').upper()
-
         if not search:
             return Ticker.objects.none()
 
-        # Exact match on code (iexact)
         exact_matches = Ticker.objects.filter(code__iexact=search)
-
-        # Partial match on code or name, excluding exact match
         partial_matches = (
             Ticker.objects.filter(code__icontains=search)
             | Ticker.objects.filter(name__icontains=search)
         ).exclude(code__iexact=search)[:10]
 
         return list(exact_matches) + list(partial_matches)
+

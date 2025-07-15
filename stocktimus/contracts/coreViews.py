@@ -8,6 +8,9 @@ from django.conf import settings
 from django.http import JsonResponse
 import requests
 import math
+from rest_framework import serializers
+# ✅ ADDED: This import is required for date calculations
+from datetime import datetime
 
 from .models import (
     OptionContract,
@@ -31,7 +34,6 @@ from .serializers import (
 
 from .utils.options_analysis import run_multiple_analyses
 from .utils.watchlist_analysis import whole_watchlist
-
 
 # --- Float Cleaning Utility ---
 def clean_floats(obj):
@@ -90,21 +92,94 @@ class RunScreenerAPIView(APIView):
             traceback.print_exc()
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# (Keep all your existing imports, including datetime)
+# ...
+
 class RunWatchlistAPIView(APIView):
     def post(self, request):
         try:
-            contracts = request.data.get("contracts", [])
-            if not contracts:
+            contracts_input = request.data.get("contracts", [])
+            if not contracts_input:
                 return Response({"error": "No contracts provided."}, status=status.HTTP_400_BAD_REQUEST)
-            print("🚀 Incoming watchlist contracts:", contracts)
-            df = whole_watchlist(contracts)
-            cleaned_data = clean_floats(df.to_dict(orient="records")) if not df.empty else []
+
+            today = datetime.now().date()
+
+            # --- Pre-process input ---
+            for contract in contracts_input:
+                if not contract.get('days_to_gain'):
+                    try:
+                        exp_date = datetime.strptime(contract['expiration'], "%Y-%m-%d").date()
+                        days_until_exp = (exp_date - today).days
+                        contract['days_to_gain'] = max(1, int(days_until_exp * 0.5))
+                    except (ValueError, TypeError):
+                        contract['days_to_gain'] = 30
+
+            # --- Create a lookup map for original inputs ---
+            input_map = {
+                (c['ticker'], c['option_type'], str(float(c['strike'])), c['expiration']): c
+                for c in contracts_input
+            }
+
+
+            print("🚀 Incoming watchlist contracts (processed):", contracts_input)
+
+            # --- Run simulation ---
+            df = whole_watchlist(contracts_input)
+
+            if df.empty:
+                print("⚠️ Simulation returned empty DataFrame — likely no contracts matched.")
+                return Response([
+                    {
+                        "Ticker": "N/A",
+                        "Note": "Simulation returned no results. Check if contract exists on EODHD UnicornBay."
+                    }
+                ], status=status.HTTP_200_OK)
+
+            results = df.to_dict(orient="records")
+
+            # --- Post-process output using the input map ---
+            processed_results = []
+            for result in results:
+                result_key = (
+                    result.get('Ticker'),
+                    result.get('Option Type'),
+                    str(result.get('Strike')),
+                    result.get('Expiration')
+                )
+                original_contract = input_map.get(result_key)
+
+                if not original_contract:
+                    print(f"❓ No matching original contract for result: {result_key}")
+                    continue
+
+                try:
+                    num_contracts = int(original_contract.get('number_of_contracts') or 1)
+                except (ValueError, TypeError):
+                    num_contracts = 1
+
+                cost_input_str = original_contract.get('average_cost_per_contract')
+                try:
+                    cost_input = float(cost_input_str) if cost_input_str else None
+                except (ValueError, TypeError):
+                    cost_input = None
+
+                current_premium = result.get('current_premium', 0)
+                final_cost = cost_input if cost_input is not None and cost_input > 0 else current_premium
+
+                result['average_cost_per_contract'] = round(final_cost, 2)
+                result['equity_invested'] = round(num_contracts * final_cost, 2)
+                result['number_of_contracts'] = num_contracts
+
+                processed_results.append(result)
+
+            cleaned_data = clean_floats(processed_results)
+            print(f"✅ Returning {len(cleaned_data)} simulated contract(s).")
             return Response(cleaned_data, status=status.HTTP_200_OK)
+
         except Exception as e:
             import traceback
             traceback.print_exc()
             return Response({"error": f"Server error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 # --- Saved Contracts: Create, Delete, Reset, Refresh ---
 class SavedContractListCreateAPIView(generics.ListCreateAPIView):
@@ -115,16 +190,53 @@ class SavedContractListCreateAPIView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         data = serializer.validated_data
-        cost = data.get("average_cost_per_contract")
+        ticker = data.get("ticker")
+        option_type = data.get("option_type")
+        strike = data.get("strike")
+        expiration = data.get("expiration")
+        today = timezone.now().date()
 
-        if cost is None:
-            cost = 4.25  # Placeholder
+        days_until_exp = (expiration - today).days
+        initial_days_to_gain = data.get("initial_days_to_gain") or int(days_until_exp * 0.5)
+        number_of_contracts = data.get("number_of_contracts", 1)
+        avg_cost_input = data.get("average_cost_per_contract")
 
-        serializer.save(
-            user=None,
-            initial_cost_per_contract=cost,
-            average_cost_per_contract=cost
-        )
+        simulation_input = [{
+            "ticker": ticker,
+            "option_type": option_type,
+            "strike": strike,
+            "expiration": expiration.isoformat(),
+            "days_to_gain": initial_days_to_gain,
+            "number_of_contracts": number_of_contracts,
+            "average_cost_per_contract": avg_cost_input if avg_cost_input is not None else 0,
+        }]
+
+        try:
+            result_df = whole_watchlist(simulation_input)
+            if result_df.empty:
+                raise ValueError("Watchlist simulator returned empty result")
+
+            result = result_df.iloc[0]
+            print("✅ Simulation result:", result.to_dict())
+
+            premium = result.get("current_premium")
+            if premium is None or math.isnan(premium):
+                premium = 0.0
+
+            avg_cost = avg_cost_input if avg_cost_input is not None else premium
+            underlying_price = result.get("current_underlying_price", 0.0)
+
+            serializer.save(
+                user=None,
+                initial_days_to_gain=initial_days_to_gain,
+                number_of_contracts=number_of_contracts,
+                average_cost_per_contract=avg_cost,
+                initial_cost_per_contract=avg_cost,
+                underlying_price_at_add=underlying_price,
+                current_underlying_price=underlying_price
+            )
+        except Exception as e:
+            raise serializers.ValidationError(f"Simulator failed: {str(e)}")
 
     def post(self, request, *args, **kwargs):
         print("🚨 Incoming data for SavedContract:", request.data)
@@ -151,7 +263,7 @@ def reset_days_to_gain(request, contract_id):
 def refresh_contract_data(request, contract_id):
     try:
         contract = SavedContract.objects.get(id=contract_id)
-        simulated_premium = 4.25  # Replace with live data later
+        simulated_premium = 4.25
         contract.average_cost_per_contract = simulated_premium
         contract.last_refresh_date = timezone.now()
         contract.save()
@@ -251,4 +363,21 @@ class TickerSearchAPIView(generics.ListAPIView):
         ).exclude(code__iexact=search)[:10]
 
         return list(exact_matches) + list(partial_matches)
+    
 
+
+# --- Remove a Contract from a Group ---
+@api_view(['DELETE'])
+def remove_contract_from_group(request, group_id, contract_id):
+    try:
+        group = WatchlistGroup.objects.get(pk=group_id)
+    except WatchlistGroup.DoesNotExist:
+        return Response({'error': 'Group not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        contract = SavedContract.objects.get(pk=contract_id)
+    except SavedContract.DoesNotExist:
+        return Response({'error': 'Contract not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    group.contracts.remove(contract)
+    return Response({'message': f'Contract {contract_id} removed from group {group.name}.'}, status=status.HTTP_200_OK)

@@ -16,6 +16,7 @@ from contracts.coreViews import (
     WatchlistGroupListCreateAPIView,
     WatchlistGroupUpdateDeleteAPIView,
     assign_contracts_to_group,
+    remove_contract_from_group,  # ✅ NEW import
     RunBulkWatchlistAPIView,
     TickerSearchAPIView,
 )
@@ -49,6 +50,9 @@ urlpatterns = [
     path('watchlist-groups/', WatchlistGroupListCreateAPIView.as_view(), name='watchlist-groups'),
     path('watchlist-groups/<int:pk>/', WatchlistGroupUpdateDeleteAPIView.as_view(), name='update-delete-group'),
     path('watchlist-groups/<int:group_id>/assign/', assign_contracts_to_group, name='assign-contracts-to-group'),
+
+    # ❌ Remove a contract from a specific group (not delete the contract)
+    path('watchlist-groups/<int:group_id>/contracts/<int:contract_id>/', remove_contract_from_group, name='remove-contract-from-group'),
 
     # 🚀 Bulk watchlist simulation endpoint
     path('run-bulk-watchlist/', RunBulkWatchlistAPIView.as_view(), name='run-bulk-watchlist'),

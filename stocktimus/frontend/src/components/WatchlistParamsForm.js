@@ -5,71 +5,198 @@ import SearchableTicker from './SearchableTicker';
 function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, onSimulationComplete }) {
   const [contracts, setContracts] = useState([
     {
-      ticker: 'AAPL',
+      ticker: 'GOOG',
       option_type: 'call',
-      strike: 220,
-      expiration: '2025-12-19',
-      days_to_gain: 30,
-      number_of_contracts: 1,
-      average_cost_per_contract: 5.0,
+      strike: 250,
+      expiration: '2027-01-15',
+      days_to_gain: '',
+      number_of_contracts: '',
+      average_cost_per_contract: '',
     },
   ]);
 
   const [assignModalVisible, setAssignModalVisible] = useState(false);
+  // ✅ 1. ADD NEW STATE to hold IDs of newly created contracts
+  const [newlySavedContractIds, setNewlySavedContractIds] = useState([]);
 
-  const handleContractChange = (index, e) => {
-    const updated = [...contracts];
-    updated[index] = { ...updated[index], [e.target.name]: e.target.value };
-    setContracts(updated);
+  const handleContractChange = (index, updatedFields) => {
+    setContracts(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], ...updatedFields };
+      return updated;
+    });
   };
 
   const handleAddContract = () => {
-    setContracts((prev) => [
+    setContracts(prev => [
       ...prev,
       {
         ticker: '',
         option_type: 'call',
-        strike: 0,
+        strike: '',
         expiration: '',
-        days_to_gain: 0,
-        number_of_contracts: 1,
-        average_cost_per_contract: 0,
+        days_to_gain: '',
+        number_of_contracts: '',
+        average_cost_per_contract: '',
       },
     ]);
   };
 
   const handleRemoveContract = (index) => {
-    setContracts((prev) => prev.filter((_, i) => i !== index));
+    setContracts(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const runSimulatorAndGetResults = async (inputContracts) => {
+    const sanitizedContracts = inputContracts.map(c => {
+      const contract = {
+        ticker: c.ticker,
+        option_type: c.option_type,
+        strike: parseFloat(c.strike),
+        expiration: c.expiration,
+      };
+
+      // Only include optional fields if they have valid values
+      if (c.days_to_gain && c.days_to_gain.toString().trim() !== '') {
+        contract.days_to_gain = parseInt(c.days_to_gain);
+      }
+      
+      if (c.number_of_contracts && c.number_of_contracts.toString().trim() !== '') {
+        contract.number_of_contracts = parseInt(c.number_of_contracts);
+      }
+      
+      if (c.average_cost_per_contract && c.average_cost_per_contract.toString().trim() !== '') {
+        contract.average_cost_per_contract = parseFloat(c.average_cost_per_contract);
+      }
+
+      return contract;
+    });
+
+    const response = await fetch('/api/run-watchlist/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contracts: sanitizedContracts }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Failed to run watchlist simulator: ${JSON.stringify(errorData)}`);
+    }
+    return await response.json();
   };
 
   const handleRunSimulator = async () => {
     try {
-      const sanitizedContracts = contracts.map(c => ({
-        ...c,
-        strike: parseFloat(c.strike),
-        days_to_gain: parseInt(c.days_to_gain),
-        number_of_contracts: parseInt(c.number_of_contracts),
-        average_cost_per_contract: parseFloat(c.average_cost_per_contract),
-      }));
-
-      const response = await fetch('/api/run-watchlist/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contracts: sanitizedContracts }),
-      });
-
-      if (!response.ok) throw new Error('Failed to run watchlist simulator');
-      const data = await response.json();
-
+      // The onSimulationComplete prop was not being used, let's use it
+      const results = await runSimulatorAndGetResults(contracts);
+      onSimulationComplete(results); // Pass results to parent component
       alert('Watchlist simulation run successfully!');
-      if (onSimulationComplete) {
-        onSimulationComplete(data);
-      }
     } catch (error) {
       console.error('Error running simulator:', error);
       alert('Failed to run simulator.');
     }
   };
+
+  // ✅ 2. CREATE NEW FUNCTION to handle saving contracts and opening the modal
+  const handleSaveContracts = async () => {
+    if (contracts.some(c => !c.ticker || !c.strike || !c.expiration)) {
+      alert("Please ensure all contracts have a Ticker, Strike, and Expiration date.");
+      return;
+    }
+
+    try {
+      const savedIds = [];
+      for (const contract of contracts) {
+        // Sanitize contract data similar to simulation
+        const contractData = {
+          ticker: contract.ticker,
+          option_type: contract.option_type,
+          strike: parseFloat(contract.strike),
+          expiration: contract.expiration,
+        };
+
+        // Only include optional fields if they have valid values
+        if (contract.days_to_gain && contract.days_to_gain.toString().trim() !== '') {
+          contractData.days_to_gain = parseInt(contract.days_to_gain);
+        }
+        
+        if (contract.number_of_contracts && contract.number_of_contracts.toString().trim() !== '') {
+          contractData.number_of_contracts = parseInt(contract.number_of_contracts);
+        }
+        
+        if (contract.average_cost_per_contract && contract.average_cost_per_contract.toString().trim() !== '') {
+          contractData.average_cost_per_contract = parseFloat(contract.average_cost_per_contract);
+        }
+
+        const response = await fetch('/api/saved-contracts/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(contractData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`Failed to save contract for ${contract.ticker}: ${JSON.stringify(errorData)}`);
+        }
+        
+        const savedContract = await response.json();
+        savedIds.push(savedContract.id);
+      }
+
+      setNewlySavedContractIds(savedIds);
+      setAssignModalVisible(true);
+
+    } catch (error) {
+      console.error('Error saving contracts:', error);
+      alert(`A problem occurred while saving: ${error.message}`);
+    }
+  };
+
+  // ✅ 3. CREATE NEW FUNCTION to handle assigning contracts from the modal
+  const handleAssignToGroups = async (selectedGroupIds) => {
+    if (selectedGroupIds.length === 0) {
+        alert("No groups selected. Closing.");
+        setAssignModalVisible(false);
+        return;
+    }
+    
+    try {
+      for (const groupId of selectedGroupIds) {
+        const response = await fetch(`/api/watchlist-groups/${groupId}/assign/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contract_ids: newlySavedContractIds }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to assign contracts to group ID ${groupId}.`);
+        }
+      }
+
+      alert('Contracts saved and assigned successfully!');
+      setAssignModalVisible(false);
+      setNewlySavedContractIds([]);
+      
+      setContracts([
+        {
+          ticker: 'GOOG',
+          option_type: 'call',
+          strike: 250,
+          expiration: '2027-01-15',
+          days_to_gain: '',
+          number_of_contracts: '',
+          average_cost_per_contract: '',
+        },
+      ]);
+      
+      await fetchGroups();
+      await fetchSavedContracts();
+
+    } catch (error) {
+      console.error('Error assigning contracts to groups:', error);
+      alert(`Failed to assign contracts: ${error.message}`);
+    }
+  };
+
 
   return (
     <div className="card space-y-4 mb-6">
@@ -83,38 +210,103 @@ function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, on
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {Object.keys(contract).map((key) => (
-              <div key={key}>
-                <label className="filter-heading">{key.replace(/_/g, ' ').toUpperCase()}</label>
-                {key === 'ticker' ? (
-                  <SearchableTicker
-                    value={contract.ticker ? { label: contract.ticker, value: contract.ticker } : null}
-                    onChange={(selected) => {
-                      const updated = [...contracts];
-                      updated[index].ticker = selected?.value || '';
-                      setContracts(updated);
-                    }}
-                  />
-                ) : key === 'option_type' ? (
-                  <select
-                    name={key}
-                    value={contract[key]}
-                    onChange={(e) => handleContractChange(index, e)}
-                    className="input"
-                  >
-                    <option value="call">Call</option>
-                    <option value="put">Put</option>
-                  </select>
-                ) : (
-                  <input
-                    className="input"
-                    name={key}
-                    value={contract[key]}
-                    onChange={(e) => handleContractChange(index, e)}
-                  />
-                )}
-              </div>
-            ))}
+            {/* Ticker */}
+            <div>
+              <label className="filter-heading">TICKER</label>
+              <SearchableTicker
+                value={contract.ticker ? { label: contract.ticker, value: contract.ticker } : null}
+                onChange={(selected) => handleContractChange(index, { ticker: selected?.value || '' })}
+              />
+            </div>
+
+            {/* Option Type */}
+            <div>
+              <label className="filter-heading">OPTION TYPE</label>
+              <select
+                className="input"
+                value={contract.option_type}
+                onChange={(e) => handleContractChange(index, { option_type: e.target.value })}
+              >
+                <option value="call">Call</option>
+                <option value="put">Put</option>
+              </select>
+            </div>
+
+            {/* Strike */}
+            <div>
+              <label className="filter-heading">STRIKE</label>
+              <input
+                type="number"
+                className="input"
+                placeholder="e.g. 220"
+                value={contract.strike}
+                onChange={(e) => handleContractChange(index, { strike: e.target.value })}
+              />
+            </div>
+
+            {/* Expiration */}
+            <div>
+              <label className="filter-heading">EXPIRATION (YYYY-MM-DD)</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="2025-12-19"
+                value={contract.expiration}
+                onChange={(e) => handleContractChange(index, { expiration: e.target.value })}
+                pattern="\d{4}-\d{2}-\d{2}"
+                title="Date must be in YYYY-MM-DD format"
+                required
+              />
+              <small className="text-xs text-gray-400">Format: YYYY-MM-DD</small>
+            </div>
+
+            {/* Days to Gain */}
+            <div>
+              <label className="filter-heading">
+                DAYS TO GAIN <span className="text-gray-400">(optional)</span>
+              </label>
+              <input
+                type="number"
+                className="input"
+                placeholder="Auto: 50% of DTE"
+                title="Optional. Defaults to 50% of time until expiration if left blank."
+                value={contract.days_to_gain || ''}
+                onChange={(e) => handleContractChange(index, { days_to_gain: e.target.value })}
+              />
+              <small className="text-xs text-gray-400">Default: 50% of DTE</small>
+            </div>
+
+            {/* Number of Contracts */}
+            <div>
+              <label className="filter-heading">
+                NUMBER OF CONTRACTS <span className="text-gray-400">(optional)</span>
+              </label>
+              <input
+                type="number"
+                className="input"
+                placeholder="Defaults to 1"
+                title="Optional. Defaults to 1 contract if left blank."
+                value={contract.number_of_contracts || ''}
+                onChange={(e) => handleContractChange(index, { number_of_contracts: e.target.value })}
+              />
+              <small className="text-xs text-gray-400">Default: 1 contract</small>
+            </div>
+
+            {/* Avg Cost per Contract */}
+            <div>
+              <label className="filter-heading">
+                AVG COST PER CONTRACT <span className="text-gray-400">(optional)</span>
+              </label>
+              <input
+                type="number"
+                className="input"
+                placeholder="Defaults to live premium"
+                title="Optional. Defaults to last traded premium if left blank."
+                value={contract.average_cost_per_contract || ''}
+                onChange={(e) => handleContractChange(index, { average_cost_per_contract: e.target.value })}
+              />
+              <small className="text-xs text-gray-400">Default: current option premium</small>
+            </div>
           </div>
         </div>
       ))}
@@ -127,57 +319,24 @@ function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, on
         <button type="button" onClick={handleRunSimulator} className="btn-primary">
           Run Watchlist Simulator
         </button>
-        <button type="button" onClick={() => setAssignModalVisible(true)} className="btn-primary">
+        {/* ✅ 4. UPDATE BUTTON to use the new handler function */}
+        <button
+          type="button"
+          onClick={handleSaveContracts}
+          className="btn-primary"
+        >
           Save to Watchlist Contract Groups
         </button>
       </div>
-
+      
+      {/* ✅ 5. UPDATE MODAL to pass the new props */}
       <WatchlistAssignGroupsModal
         isOpen={assignModalVisible}
         onClose={() => setAssignModalVisible(false)}
         groups={groups}
         fetchGroups={fetchGroups}
-        onAssign={async (selectedGroupIds) => {
-          try {
-            for (const contract of contracts) {
-              const sanitized = {
-                ...contract,
-                strike: parseFloat(contract.strike),
-                days_to_gain: parseInt(contract.days_to_gain),
-                number_of_contracts: parseInt(contract.number_of_contracts),
-                average_cost_per_contract: parseFloat(contract.average_cost_per_contract),
-                label: "",
-              };
-
-              const response = await fetch('/api/saved-contracts/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(sanitized),
-              });
-
-              if (!response.ok) throw new Error('Failed to save contract');
-              const saved = await response.json();
-              const contractId = saved.id;
-
-              for (const groupId of selectedGroupIds) {
-                const assignRes = await fetch(`/api/watchlist-groups/${groupId}/assign/`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ contract_ids: [contractId] }),
-                });
-                if (!assignRes.ok) throw new Error(`Failed to assign contract ${contractId} to group ${groupId}`);
-              }
-            }
-
-            alert('Contracts saved and assigned successfully!');
-            setAssignModalVisible(false);
-            await fetchGroups();
-            await fetchSavedContracts();
-          } catch (error) {
-            console.error('Error assigning contracts:', error);
-            alert('Failed to assign contracts to groups.');
-          }
-        }}
+        contracts={newlySavedContractIds}
+        onAssign={handleAssignToGroups}
       />
     </div>
   );

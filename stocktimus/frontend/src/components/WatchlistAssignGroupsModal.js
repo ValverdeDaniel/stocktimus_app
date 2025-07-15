@@ -6,15 +6,13 @@ export default function WatchlistAssignGroupsModal({
   onAssign,
   groups,
   fetchGroups,
-  contracts = [], // list of selected contract IDs passed in
+  contracts = [], // selected contract IDs
 }) {
   const [selectedGroups, setSelectedGroups] = useState([]);
   const [newGroupName, setNewGroupName] = useState('');
-  const [assignMode, setAssignMode] = useState('append'); // 👈 append or replace
 
   useEffect(() => {
-    setSelectedGroups([]); // reset selection each time modal opens
-    setAssignMode('append'); // default to append each time modal opens
+    setSelectedGroups([]);
   }, [isOpen]);
 
   const handleCreateGroup = async () => {
@@ -40,7 +38,11 @@ export default function WatchlistAssignGroupsModal({
   };
 
   const handleSave = async () => {
-    await onAssign(selectedGroups, assignMode); // 👈 pass mode to parent
+    if (contracts.some((id) => typeof id !== 'number')) {
+      alert("One or more contracts haven't been saved yet.");
+      return;
+    }
+    await onAssign(selectedGroups, 'append'); // 🔁 always append
     setSelectedGroups([]);
     onClose();
   };
@@ -53,15 +55,9 @@ export default function WatchlistAssignGroupsModal({
         <h3 className="heading-lg">Assign to Watchlist Contract Groups</h3>
 
         <div className="text-sm mb-2">
-          {contracts.length === 1 ? (
-            <p className="text-text">
-              <strong>Updating groups for 1 contract.</strong>
-            </p>
-          ) : (
-            <p className="text-text">
-              <strong>Assigning {contracts.length} contracts to selected groups.</strong>
-            </p>
-          )}
+          <p className="text-text">
+            <strong>Assigning {contracts.length} contract{contracts.length > 1 ? 's' : ''} to selected group{selectedGroups.length > 1 ? 's' : ''}.</strong>
+          </p>
         </div>
 
         <div className="flex flex-col gap-2 max-h-60 overflow-y-auto border rounded p-2">
@@ -80,32 +76,6 @@ export default function WatchlistAssignGroupsModal({
               {group.name}
             </label>
           ))}
-        </div>
-
-        <div className="flex flex-col gap-2 mt-2">
-          <label className="text-xs text-muted">Assignment Mode:</label>
-          <div className="flex gap-4 items-center">
-            <label className="flex items-center gap-1 text-sm">
-              <input
-                type="radio"
-                name="assignMode"
-                value="append"
-                checked={assignMode === 'append'}
-                onChange={() => setAssignMode('append')}
-              />
-              Append
-            </label>
-            <label className="flex items-center gap-1 text-sm">
-              <input
-                type="radio"
-                name="assignMode"
-                value="replace"
-                checked={assignMode === 'replace'}
-                onChange={() => setAssignMode('replace')}
-              />
-              Replace
-            </label>
-          </div>
         </div>
 
         <div className="flex gap-2 mt-2">

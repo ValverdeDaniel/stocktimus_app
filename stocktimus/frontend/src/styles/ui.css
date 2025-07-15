@@ -128,3 +128,26 @@
 .tab-unselected {
   @apply bg-surface text-text;
 }
+
+
+/* === Spotify Theme Additions === */
+
+.btn-green {
+  @apply bg-[#1DB954] hover:bg-[#1ed760] text-black px-3 py-1 rounded text-xs;
+}
+
+.btn-dark {
+  @apply bg-[#404040] hover:bg-[#555] text-white px-3 py-1 rounded text-xs;
+}
+
+.btn-danger {
+  @apply bg-[#FF4C4C] hover:bg-[#FF5555] text-white px-3 py-1 rounded text-xs;
+}
+
+.card-dark {
+  @apply rounded-xl p-4 shadow-md bg-[#282828] text-white border border-[#1db954]/40 hover:shadow-lg transition-shadow;
+}
+
+.modal-dark {
+  @apply bg-[#121212] border border-[#1DB954] text-white p-6 rounded-xl shadow-xl;
+}

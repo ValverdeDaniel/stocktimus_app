@@ -11,27 +11,98 @@ API_KEY = "67ffece4b2ae08.94077168"
 BASE_URL = "https://eodhd.com/api/mp/unicornbay/options/contracts"
 
 def black_scholes_call_price(S, K, T, r, sigma):
-    if T <= 0 or sigma <= 0:
+    """
+    Calculate Black-Scholes call option price with robust input validation.
+    """
+    # Input validation to prevent mathematical errors
+    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+        return max(S - K, 0)  # Return intrinsic value
+    
+    # Prevent extreme values that cause numerical issues
+    if S / K > 1000 or K / S > 1000:
+        # For extremely out-of-the-money options, return intrinsic value
         return max(S - K, 0)
-    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
-    d2 = d1 - sigma * np.sqrt(T)
-    return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+    
+    try:
+        d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
+        
+        # Check for numerical overflow/underflow
+        if np.isnan(d1) or np.isnan(d2) or np.isinf(d1) or np.isinf(d2):
+            return max(S - K, 0)
+            
+        call_price = S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+        
+        # Ensure result is valid
+        if np.isnan(call_price) or np.isinf(call_price) or call_price < 0:
+            return max(S - K, 0)
+            
+        return call_price
+        
+    except (ValueError, OverflowError, ZeroDivisionError):
+        # Fallback to intrinsic value on any mathematical error
+        return max(S - K, 0)
 
 def black_scholes_put_price(S, K, T, r, sigma):
-    if T <= 0 or sigma <= 0:
+    """
+    Calculate Black-Scholes put option price with robust input validation.
+    """
+    # Input validation to prevent mathematical errors
+    if T <= 0 or sigma <= 0 or S <= 0 or K <= 0:
+        return max(K - S, 0)  # Return intrinsic value
+    
+    # Prevent extreme values that cause numerical issues
+    if S / K > 1000 or K / S > 1000:
+        # For extremely out-of-the-money options, return intrinsic value
         return max(K - S, 0)
-    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
-    d2 = d1 - sigma * np.sqrt(T)
-    return K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+    
+    try:
+        d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
+        
+        # Check for numerical overflow/underflow
+        if np.isnan(d1) or np.isnan(d2) or np.isinf(d1) or np.isinf(d2):
+            return max(K - S, 0)
+            
+        put_price = K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+        
+        # Ensure result is valid
+        if np.isnan(put_price) or np.isinf(put_price) or put_price < 0:
+            return max(K - S, 0)
+            
+        return put_price
+        
+    except (ValueError, OverflowError, ZeroDivisionError):
+        # Fallback to intrinsic value on any mathematical error
+        return max(K - S, 0)
 
+    
 def current_stock_price(ticker):
+    """
+    Fetches the current stock price with enhanced logging to debug API responses.
+    """
     url = f"https://eodhd.com/api/real-time/{ticker}.US?api_token={API_KEY}&fmt=json"
+    print(f"--- [DEBUG] Attempting to fetch price for {ticker} from URL: {url} ---")
     try:
         response = requests.get(url, timeout=10)
-        response.raise_for_status()
+        
+        # --- Enhanced Logging ---
+        print(f"--- [DEBUG] Response Status Code for {ticker}: {response.status_code} ---")
+        print(f"--- [DEBUG] Raw Response Text for {ticker}: {response.text} ---")
+        print(f"🔍 Requesting option contract from: {response.url}")
+
+        response.raise_for_status()  # This will raise an error for 4xx or 5xx status codes
+
         data = response.json()
-        return float(data.get("close", 0))
+        price = data.get("close") # Get 'close', which might be None
+        
+        print(f"--- [DEBUG] Extracted 'close' price for {ticker}: {price} ---")
+
+        # Ensure price is a valid float before returning, otherwise return 0
+        return float(price) if price is not None else 0
+
     except Exception as e:
+        print(f"🚨 FAILED TO FETCH PRICE for {ticker}. Reason: {e}")
         logging.warning(f"Failed to fetch current price for {ticker}: {e}")
         return 0
 

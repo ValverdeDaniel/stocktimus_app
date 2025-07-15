@@ -37,8 +37,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    'rest_framework', #djangorestframework for api building allows frontend (React) to talk to django backend using json
-    'contracts', # your custom app
+    'rest_framework',  # djangorestframework for API building
+    'contracts',       # your custom app
     'corsheaders', 
 ]
 
@@ -119,9 +119,7 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
-
+# REST Framework default config
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',  # 👈 Dev mode: open access
@@ -132,3 +130,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # CORS setup for local frontend development
 CORS_ALLOW_ALL_ORIGINS = True  # Development only
+
+# ✅ EODHD API Key for Options Chain
+EODHD_API_KEY = "67ffece4b2ae08.94077168"

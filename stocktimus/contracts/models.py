@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
+
 
 class OptionContract(models.Model):
     ticker = models.CharField(max_length=10)
@@ -65,11 +67,18 @@ class SavedContract(models.Model):
     strike = models.FloatField()
     expiration = models.DateField()
 
-    initial_days_to_gain = models.IntegerField()
+    initial_days_to_gain = models.IntegerField(null=True, blank=True)
     number_of_contracts = models.IntegerField(default=1)
 
     average_cost_per_contract = models.FloatField(null=True, blank=True)
-    initial_cost_per_contract = models.FloatField()
+    initial_cost_per_contract = models.FloatField(null=True, blank=True)
+
+    underlying_price_at_add = models.FloatField(null=True, blank=True)
+    current_underlying_price = models.FloatField(null=True, blank=True)
+
+    # Optional enhancements
+    latest_simulation_result = models.JSONField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
 
     first_added_to_group_date = models.DateTimeField(auto_now_add=True)
     last_reset_date = models.DateTimeField(auto_now_add=True)
@@ -77,9 +86,8 @@ class SavedContract(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def dynamic_days_to_gain(self):
-        from django.utils import timezone
         elapsed = (timezone.now().date() - self.last_reset_date.date()).days
-        return max(0, self.initial_days_to_gain - elapsed)
+        return max(0, self.initial_days_to_gain - elapsed) if self.initial_days_to_gain else 0
 
     def __str__(self):
         return f"{self.label or self.ticker} ({self.option_type.upper()})"

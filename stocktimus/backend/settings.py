@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'rest_framework',  # djangorestframework for API building
     'contracts',       # your custom app
     'corsheaders', 
+    
 ]
 
 MIDDLEWARE = [

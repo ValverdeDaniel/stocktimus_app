@@ -14,6 +14,11 @@ function WatchlistGroups({
 }) {
   const [assignModalVisible, setAssignModalVisible] = useState(false);
   const [contractsForAssignment, setContractsForAssignment] = useState([]);
+  const [collapsedGroups, setCollapsedGroups] = useState({});
+
+  const toggleCollapse = (groupId) => {
+    setCollapsedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
 
   const openAssignModalForContracts = (contracts) => {
     setContractsForAssignment(contracts);
@@ -42,7 +47,6 @@ function WatchlistGroups({
     }
   };
 
-  // ✅ Updated to remove contract from specific group only
   const handleDeleteContract = async (contractId, groupId) => {
     try {
       const res = await fetch(`/api/watchlist-groups/${groupId}/contracts/${contractId}/`, {
@@ -61,48 +65,65 @@ function WatchlistGroups({
       <h3 className="heading-lg">📂 Watchlist Groups</h3>
 
       <div className="space-y-4">
-        {groups.map((group) => (
-          <div key={group.id} className="card card-hover">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-lg font-bold text-primary">{group.name}</span>
-              <button
-                onClick={() => onRunGroup(group.id)}
-                className="btn-primary text-xs"
-              >
-                Run Group
-              </button>
-            </div>
+        {groups.map((group) => {
+          const isCollapsed = collapsedGroups[group.id];
 
-            {group.contracts.length > 0 ? (
-              <div className="text-sm text-muted pl-1 space-y-2">
-                {[...group.contracts]
-                  .sort((a, b) => a.ticker.localeCompare(b.ticker))
-                  .map((c) => (
-                    <WatchlistContractCard
-                      key={c.id}
-                      contract={c}
-                      isSelected={selectedContracts.includes(c.id)}
-                      onSelect={(id, checked) => {
-                        if (checked) {
-                          setSelectedContracts((prev) => [...prev, id]);
-                        } else {
-                          setSelectedContracts((prev) => prev.filter((cid) => cid !== id));
-                        }
-                      }}
-                      onReset={handleResetDays}
-                      onRefresh={handleRefresh}
-                      onUpdateGroups={(id) => openAssignModalForContracts([id])}
-                      onDelete={(id) => handleDeleteContract(id, group.id)} // ✅ Now uses group ID
-                    />
-                  ))}
+          return (
+            <div key={group.id} className="card card-hover">
+              <div className="flex justify-between items-center mb-2">
+                <button
+                  onClick={() => toggleCollapse(group.id)}
+                  className="flex items-center gap-2 text-primary font-bold text-lg hover:underline"
+                >
+                  <span className="text-green-400 text-xl leading-none">
+                    {isCollapsed ? '+' : '−'}
+                  </span>
+                  {group.name}
+                </button>
+
+                <button
+                  onClick={() => onRunGroup(group.id)}
+                  className="btn-primary text-xs"
+                >
+                  Run Group
+                </button>
               </div>
-            ) : (
-              <div className="text-sm text-muted pl-1 italic">
-                (No contracts assigned)
-              </div>
-            )}
-          </div>
-        ))}
+
+              {!isCollapsed && (
+                <>
+                  {group.contracts.length > 0 ? (
+                    <div className="text-sm text-muted pl-1 space-y-2">
+                      {[...group.contracts]
+                        .sort((a, b) => a.ticker.localeCompare(b.ticker))
+                        .map((c) => (
+                          <WatchlistContractCard
+                            key={c.id}
+                            contract={c}
+                            isSelected={selectedContracts.includes(c.id)}
+                            onSelect={(id, checked) => {
+                              if (checked) {
+                                setSelectedContracts((prev) => [...prev, id]);
+                              } else {
+                                setSelectedContracts((prev) => prev.filter((cid) => cid !== id));
+                              }
+                            }}
+                            onReset={handleResetDays}
+                            onRefresh={handleRefresh}
+                            onUpdateGroups={(id) => openAssignModalForContracts([id])}
+                            onDelete={(id) => handleDeleteContract(id, group.id)}
+                          />
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted pl-1 italic">
+                      (No contracts assigned)
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {selectedContracts.length > 0 && (

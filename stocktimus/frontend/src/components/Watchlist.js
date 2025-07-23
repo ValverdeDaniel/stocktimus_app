@@ -3,12 +3,18 @@ import WatchlistParamsForm from './WatchlistParamsForm';
 import WatchlistTable from './WatchlistTable';
 import WatchlistFilterControls from './WatchlistFilterControls';
 import WatchlistGroups from './WatchlistGroups';
+import {
+  getSavedContracts,
+  getWatchlistGroups,
+  runBulkWatchlist,
+  deleteSavedContract,
+  assignContractsToGroup,
+} from '../services/api'; // ✅ Import centralized API functions
 
 function Watchlist() {
   const [watchlistItems, setWatchlistItems] = useState([]);
   const [selectedTickers, setSelectedTickers] = useState([]);
-
-  const [selectedContracts, setSelectedContracts] = useState([]); // still used for group-level actions
+  const [selectedContracts, setSelectedContracts] = useState([]);
   const [groups, setGroups] = useState([]);
 
   useEffect(() => {
@@ -16,36 +22,33 @@ function Watchlist() {
     fetchGroups();
   }, []);
 
+  // --- Fetch Saved Contracts ---
   const fetchSavedContracts = async () => {
     try {
-      const response = await fetch('/api/saved-contracts/');
-      if (!response.ok) throw new Error('Failed to fetch saved contracts');
-      await response.json(); // no longer storing the contracts in state
+      const response = await getSavedContracts();
+      console.log('Saved Contracts:', response.data);
+      setWatchlistItems(response.data); // ✅ Store saved contracts in watchlistItems
     } catch (error) {
-      console.error('Error loading saved contracts:', error);
+      console.error('Error loading saved contracts:', error.response?.data || error.message);
     }
   };
 
+  // --- Fetch Groups ---
   const fetchGroups = async () => {
     try {
-      const response = await fetch('/api/watchlist-groups/');
-      if (!response.ok) throw new Error('Failed to fetch groups');
-      const data = await response.json();
-      setGroups(Array.isArray(data) ? data : []);
+      const response = await getWatchlistGroups();
+      setGroups(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      console.error('Error loading groups:', error);
+      console.error('Error loading groups:', error.response?.data || error.message);
     }
   };
 
+  // --- Run Selected Contracts ---
   const handleRunSelected = async () => {
     try {
-      const response = await fetch('/api/run-bulk-watchlist/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contract_ids: selectedContracts }),
-      });
-      if (!response.ok) throw new Error('Failed to run selected contracts');
-      const data = await response.json();
+      const response = await runBulkWatchlist({ contract_ids: selectedContracts });
+      const data = response.data;
+
       if (Array.isArray(data)) {
         setWatchlistItems((prev) => [...prev, ...data]);
       } else {
@@ -53,32 +56,24 @@ function Watchlist() {
         alert(`Server returned unexpected response: ${JSON.stringify(data)}`);
       }
     } catch (error) {
-      console.error('Error running selected contracts:', error);
+      console.error('Error running selected contracts:', error.response?.data || error.message);
       alert(`Failed to run selected contracts: ${error.message}`);
     }
   };
 
+  // --- Run a Group ---
   const handleRunGroup = async (groupId) => {
     try {
-      const response = await fetch(`/api/watchlist-groups/${groupId}/`);
-      if (!response.ok) throw new Error('Failed to load group');
-      const group = await response.json();
-
-      if (!group.contracts || !Array.isArray(group.contracts)) {
+      const group = groups.find((g) => g.id === groupId);
+      if (!group || !Array.isArray(group.contracts)) {
         console.error('Unexpected group data:', group);
         alert('Invalid group data received from server.');
         return;
       }
 
       const contractIds = group.contracts.map((c) => c.id);
-
-      const runResponse = await fetch('/api/run-bulk-watchlist/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contract_ids: contractIds }),
-      });
-      if (!runResponse.ok) throw new Error('Failed to run group');
-      const data = await runResponse.json();
+      const runResponse = await runBulkWatchlist({ contract_ids: contractIds });
+      const data = runResponse.data;
 
       if (Array.isArray(data)) {
         setWatchlistItems((prev) => [...prev, ...data]);
@@ -90,18 +85,18 @@ function Watchlist() {
         alert(`Unexpected server response: ${JSON.stringify(data)}`);
       }
     } catch (error) {
-      console.error('Error running group:', error);
+      console.error('Error running group:', error.response?.data || error.message);
       alert(`Failed to run group: ${error.message}`);
     }
   };
 
+  // --- Delete Contract ---
   const handleDeleteContract = async (id) => {
     try {
-      const response = await fetch(`/api/saved-contracts/${id}/`, { method: 'DELETE' });
-      if (!response.ok) throw new Error('Failed to delete contract');
+      await deleteSavedContract(id);
       await fetchSavedContracts();
     } catch (error) {
-      console.error('Error deleting contract:', error);
+      console.error('Error deleting contract:', error.response?.data || error.message);
       alert(`Failed to delete contract: ${error.message}`);
     }
   };
@@ -114,7 +109,10 @@ function Watchlist() {
         groups={groups}
         fetchGroups={fetchGroups}
         fetchSavedContracts={fetchSavedContracts}
-        onSimulationComplete={(results) => setWatchlistItems(results)}
+        onSimulationComplete={(results) => {
+          console.log('✅ simulation results:', results);
+          setWatchlistItems(results);
+        }}
       />
 
       <WatchlistGroups
@@ -127,22 +125,16 @@ function Watchlist() {
         handleBulkDelete={handleDeleteContract}
         handleBulkAssign={async (selectedGroupIds) => {
           try {
-            for (const contractId of selectedContracts) {
-              for (const groupId of selectedGroupIds) {
-                const response = await fetch(`/api/watchlist-groups/${groupId}/assign/`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ contract_ids: [contractId] }),
-                });
-                if (!response.ok) throw new Error(`Failed to assign contract ${contractId} to group ${groupId}`);
-              }
+            for (const groupId of selectedGroupIds) {
+              await assignContractsToGroup(groupId, selectedContracts); // ✅ Use API helper
             }
             alert('Contracts assigned successfully!');
             setSelectedContracts([]);
             await fetchGroups();
             await fetchSavedContracts();
           } catch (error) {
-            console.error('Error bulk assigning:', error);
+            console.error('Error bulk assigning:', error.response?.data || error.message);
+            alert(`Failed to assign contracts: ${error.message}`);
           }
         }}
       />
@@ -153,10 +145,7 @@ function Watchlist() {
         setSelectedTickers={setSelectedTickers}
       />
 
-      <WatchlistTable
-        items={watchlistItems}
-        selectedTickers={selectedTickers}
-      />
+      <WatchlistTable items={watchlistItems} selectedTickers={selectedTickers} />
     </div>
   );
 }

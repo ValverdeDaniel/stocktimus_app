@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createWatchlistGroup } from '../services/api'; // ✅ Use named function from api.js
 
 export default function WatchlistAssignGroupsModal({
   isOpen,
@@ -10,30 +11,35 @@ export default function WatchlistAssignGroupsModal({
 }) {
   const [selectedGroups, setSelectedGroups] = useState([]);
   const [newGroupName, setNewGroupName] = useState('');
+  const [isCreating, setIsCreating] = useState(false); // Track group creation
+  const [error, setError] = useState('');
 
   useEffect(() => {
     setSelectedGroups([]);
+    setError('');
   }, [isOpen]);
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) {
-      alert('Group name cannot be empty.');
+      setError('Group name cannot be empty.');
       return;
     }
+    setError('');
+    setIsCreating(true);
     try {
-      const response = await fetch('/api/watchlist-groups/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newGroupName }),
-      });
-      if (!response.ok) throw new Error('Failed to create group');
-      const newGroup = await response.json();
+      const response = await createWatchlistGroup({ name: newGroupName });
+      const newGroup = response.data;
+
       setSelectedGroups((prev) => [...prev, newGroup.id]);
-      await fetchGroups();
       setNewGroupName('');
+
+      // Refresh group list
+      await fetchGroups?.();
     } catch (error) {
-      console.error('Error creating group:', error);
-      alert('Failed to create group.');
+      console.error('Error creating group:', error.response?.data || error.message);
+      setError(`Failed to create group: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -56,12 +62,17 @@ export default function WatchlistAssignGroupsModal({
 
         <div className="text-sm mb-2">
           <p className="text-text">
-            <strong>Assigning {contracts.length} contract{contracts.length > 1 ? 's' : ''} to selected group{selectedGroups.length > 1 ? 's' : ''}.</strong>
+            <strong>
+              Assigning {contracts.length} contract{contracts.length > 1 ? 's' : ''} to selected group
+              {selectedGroups.length > 1 ? 's' : ''}.
+            </strong>
           </p>
         </div>
 
+        {error && <p className="text-red-500 text-sm">{error}</p>}
+
         <div className="flex flex-col gap-2 max-h-60 overflow-y-auto border rounded p-2">
-          {groups.map((group) => (
+          {groups?.map((group) => (
             <label key={group.id} className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -85,8 +96,12 @@ export default function WatchlistAssignGroupsModal({
             value={newGroupName}
             onChange={(e) => setNewGroupName(e.target.value)}
           />
-          <button className="btn-primary text-xs" onClick={handleCreateGroup}>
-            Create
+          <button
+            className="btn-primary text-xs"
+            onClick={handleCreateGroup}
+            disabled={isCreating}
+          >
+            {isCreating ? 'Creating...' : 'Create'}
           </button>
         </div>
 
@@ -94,7 +109,11 @@ export default function WatchlistAssignGroupsModal({
           <button className="btn-secondary text-xs" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn-primary text-xs" onClick={handleSave}>
+          <button
+            className="btn-primary text-xs"
+            onClick={handleSave}
+            disabled={selectedGroups.length === 0}
+          >
             Save
           </button>
         </div>

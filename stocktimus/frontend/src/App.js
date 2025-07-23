@@ -1,20 +1,55 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 import './styles/ui.css';
+
 import Navbar from './components/Navbar';
 import ScreenerResults from './components/ScreenerResults';
-import Watchlist from './components/Watchlist';  // ✅ Watchlist component
+import Watchlist from './components/Watchlist';
+import LoginForm from './components/LoginForm';
+import SignupForm from './components/SignupForm';
+import { logout } from './services/api';
+
+function RequireAuth({ children }) {
+  const token = localStorage.getItem('token');
+  return token ? children : <Navigate to="/login" />;
+}
 
 function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    setIsLoggedIn(!!token);
+  }, []);
+
+  const handleLogout = () => {
+    logout();
+    setIsLoggedIn(false);
+  };
+
+  const handleLogin = () => {
+    setIsLoggedIn(true);
+  };
+
   return (
     <Router>
       <div className="App dark bg-background text-text min-h-screen">
-        <Navbar />
+        {isLoggedIn && <Navbar onLogout={handleLogout} />}
         <div className="container-wide p-4">
           <Routes>
-            <Route path="/" element={<ScreenerResults />} />
-            <Route path="/watchlist" element={<Watchlist />} />  {/* ✅ This enables your watchlist page */}
+            <Route path="/login" element={<LoginForm onLogin={handleLogin} />} />
+            <Route path="/signup" element={<SignupForm onSignup={handleLogin} />} />
+            <Route path="/" element={
+              <RequireAuth>
+                <ScreenerResults />
+              </RequireAuth>
+            } />
+            <Route path="/watchlist" element={
+              <RequireAuth>
+                <Watchlist />
+              </RequireAuth>
+            } />
           </Routes>
         </div>
       </div>

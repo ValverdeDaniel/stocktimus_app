@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import WatchlistAssignGroupsModal from './WatchlistAssignGroupsModal';
 import WatchlistContractCard from './WatchlistContractCard';
+import apiClient from '../services/api'; // ✅ Use authorized Axios client
 
 function WatchlistGroups({
   groups,
@@ -27,8 +28,7 @@ function WatchlistGroups({
 
   const handleResetDays = async (contractId) => {
     try {
-      const res = await fetch(`/api/saved-contracts/${contractId}/reset-days/`, { method: 'PATCH' });
-      if (!res.ok) throw new Error('Reset failed');
+      await apiClient.patch(`/saved-contracts/${contractId}/reset-days/`);
       await fetchGroups();
     } catch (err) {
       console.error("Error resetting countdown:", err);
@@ -38,8 +38,7 @@ function WatchlistGroups({
 
   const handleRefresh = async (contractId) => {
     try {
-      const res = await fetch(`/api/saved-contracts/${contractId}/refresh/`, { method: 'PATCH' });
-      if (!res.ok) throw new Error('Refresh failed');
+      await apiClient.patch(`/saved-contracts/${contractId}/refresh/`);
       await fetchGroups();
     } catch (err) {
       console.error("Error refreshing contract:", err);
@@ -49,10 +48,7 @@ function WatchlistGroups({
 
   const handleDeleteContract = async (contractId, groupId) => {
     try {
-      const res = await fetch(`/api/watchlist-groups/${groupId}/contracts/${contractId}/`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) throw new Error('Delete from group failed');
+      await apiClient.delete(`/watchlist-groups/${groupId}/contracts/${contractId}/`);
       await fetchGroups();
     } catch (err) {
       console.error("Error removing contract from group:", err);
@@ -148,15 +144,10 @@ function WatchlistGroups({
         onAssign={async (selectedGroupIds, mode) => {
           try {
             for (const groupId of selectedGroupIds) {
-              const response = await fetch(`/api/watchlist-groups/${groupId}/assign/`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contract_ids: contractsForAssignment,
-                  mode,
-                }),
+              await apiClient.post(`/watchlist-groups/${groupId}/assign/`, {
+                contract_ids: contractsForAssignment,
+                mode,
               });
-              if (!response.ok) throw new Error(`Failed assigning contracts to group ${groupId}`);
             }
             alert('Contracts assigned successfully!');
             setAssignModalVisible(false);

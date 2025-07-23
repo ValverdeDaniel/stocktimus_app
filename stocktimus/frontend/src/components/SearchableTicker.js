@@ -45,13 +45,26 @@ const SearchableTicker = ({ onChange, value, placeholder = "Search ticker..." })
   const loadOptions = async (inputValue) => {
     if (!inputValue) return [];
 
-    const res = await fetch(`/api/tickers/?search=${inputValue}`);
-    const data = await res.json();
+    try {
+      const res = await fetch(`/api/ticker-search/?search=${inputValue}`);
+      if (!res.ok) {
+        console.error("Ticker search failed:", res.status, res.statusText);
+        return [{ label: "Error fetching tickers", value: "" }];
+      }
 
-    return data.map((item) => ({
-      label: `${item.code} — ${item.name}`,
-      value: item.code,
-    }));
+      const data = await res.json();
+      if (!data || data.length === 0) {
+        return [{ label: "No results found", value: "" }];
+      }
+
+      return data.map((item) => ({
+        label: `${item.code} — ${item.name}`,
+        value: item.code,
+      }));
+    } catch (error) {
+      console.error("Error loading tickers:", error);
+      return [{ label: "Error loading tickers", value: "" }];
+    }
   };
 
   return (

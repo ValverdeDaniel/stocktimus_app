@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signup } from '../services/api';
 
-
 function SignupForm({ onSignup }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -14,20 +13,46 @@ function SignupForm({ onSignup }) {
     const result = await signup(username, password);
     if (result.token) {
       onSignup();
-      navigate('/watchlist'); // ✅ redirect
+      navigate('/watchlist'); // redirect
     } else {
       setError(result.error || 'Signup failed');
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-sm mx-auto">
-      <h2 className="text-xl font-bold">Sign Up</h2>
-      {error && <div className="text-red-500">{error}</div>}
-      <input type="text" placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} className="w-full p-2 border rounded" />
-      <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-2 border rounded" />
-      <button type="submit" className="btn-primary w-full">Sign Up</button>
-    </form>
+    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-sm bg-white rounded-lg shadow-lg p-6 space-y-5"
+      >
+        <h2 className="text-2xl font-bold text-gray-800 text-center">Sign Up</h2>
+
+        {error && <div className="text-red-600 text-sm text-center">{error}</div>}
+
+        <input
+          type="text"
+          placeholder="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
+        />
+
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder-gray-500"
+        />
+
+        <button
+          type="submit"
+          className="w-full bg-blue-600 text-white font-semibold py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Sign Up
+        </button>
+      </form>
+    </div>
   );
 }
 

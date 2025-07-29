@@ -43,6 +43,107 @@ C:\Users\Daniel2\OneDrive\Desktop\devprojects\shadowstocks\stocktimus\frontend>n
 ============================================================
 
 
+
 pgadmin root password; 3*P*******
 stocktimus database pw: 4*M*****
 
+
+
+
+
+----------------------------------------------------------------------------------
+Branches on git bash merging
+# On branch 'cline'
+git add Testing/
+git commit -m "Feat: Add watchlist testing notebooks and data"
+git checkout main
+git pull origin main
+git merge cline
+git push origin main
+git branch -d cline
+
+
+
+
+--------------------------------------------------------
+
+========================================
+ GIT BRANCHING & MERGING CHEAT SHEET
+========================================
+
+### PHASE 1: CREATE A NEW BRANCH ###
+
+# Goal: Create a new branch based on the most up-to-date version of 'main'.
+
+# 1. Go to your main branch
+git checkout main
+
+# 2. Pull the latest changes from the remote repository
+git pull origin main
+
+# 3. Create your new branch and switch to it (-b creates the branch)
+git checkout -b <your-new-branch-name>
+
+
+### PHASE 2: DO YOUR WORK ON THE NEW BRANCH ###
+
+# Goal: Make changes and save them in commits on your new branch.
+# This is a loop: Edit -> Add -> Commit. Repeat as needed.
+
+# 1. Make your changes (edit, create, or delete files).
+
+# 2. Check the status of your changes
+git status
+
+# 3. Add the files you want to save to the staging area
+# (Use a specific file name or '.' to add all changes)
+git add <file-name>
+git add .
+
+# 4. Commit your staged changes with a descriptive message
+git commit -m "Your descriptive message for this change"
+
+
+### PHASE 3: PREPARE TO MERGE ###
+
+# Goal: Push your branch to the remote and get 'main' ready for the merge.
+
+# 1. Push your new branch to the remote repository ('origin')
+# (The -u flag sets the upstream link for future pushes)
+git push -u origin <your-new-branch-name>
+
+# 2. Switch back to the main branch
+git checkout main
+
+# 3. Pull the latest changes on main one more time
+# (This is important in case others have merged work while you were on your branch)
+git pull origin main
+
+
+### PHASE 4: MERGE AND PUSH ###
+
+# Goal: Merge your feature branch into main and update the remote repository.
+
+# 1. Merge your branch into main (you must be on 'main' to do this)
+git merge <your-new-branch-name>
+
+# ** If you get MERGE CONFLICTS: **
+#    a. Open the conflicted files listed in the terminal.
+#    b. Edit them to resolve the differences (remove the '<<<<<', '=====', '>>>>>' markers).
+#    c. Stage the resolved files: git add <file-name>
+#    d. Commit the merge: git commit -m "Fix merge conflicts"
+
+# 2. Push the newly merged main branch to the remote repository
+git push origin main
+
+
+### PHASE 5: CLEAN UP ###
+
+# Goal: Delete the feature branch now that its work is complete.
+
+# 1. Delete the local branch
+# (-d is a safeguard that only works if the branch has been merged)
+git branch -d <your-new-branch-name>
+
+# 2. Delete the remote branch (optional, but good practice)
+git push origin --delete <your-new-branch-name>

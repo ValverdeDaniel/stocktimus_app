@@ -2,18 +2,33 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 import logging
-from .options_analysis import black_scholes_call_price, black_scholes_put_price, current_stock_price, API_KEY, BASE_URL
+from .options_analysis import (
+    black_scholes_call_price,
+    black_scholes_put_price,
+    current_stock_price,
+    API_KEY,
+    BASE_URL,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-def simulate_option_watchlist_single(ticker, option_type, strike, expiration, days_to_gain,
-                                     number_of_contracts, average_cost_per_contract, risk_free_rate=0.05):
+
+def simulate_option_watchlist_single(
+    ticker,
+    option_type,
+    strike,
+    expiration,
+    days_to_gain,
+    number_of_contracts,
+    average_cost_per_contract,
+    risk_free_rate=0.05,
+):
     """
-    Simulates option scenarios for a single watchlist contract, using the robust logic
-    proven to work in the Jupyter Notebook environment.
+    Simulates option scenarios for a single watchlist contract.
+    Output columns match ScreenerResultsTable for consistency.
     """
     try:
-        # --- Data Type Conversion and Default Handling (from Jupyter) ---
+        # --- Data Type Conversion and Default Handling ---
         try:
             strike = float(strike)
         except (TypeError, ValueError):
@@ -24,9 +39,14 @@ def simulate_option_watchlist_single(ticker, option_type, strike, expiration, da
             return pd.DataFrame([{"Error": f"Could not fetch a valid stock price for {ticker}."}])
 
         params = {
-            "api_token": API_KEY, "filter[underlying_symbol]": ticker, "filter[type]": option_type,
-            "filter[exp_date_from]": expiration, "filter[exp_date_to]": expiration,
-            "filter[strike_from]": strike, "filter[strike_to]": strike, "page[limit]": 1
+            "api_token": API_KEY,
+            "filter[underlying_symbol]": ticker,
+            "filter[type]": option_type,
+            "filter[exp_date_from]": expiration,
+            "filter[exp_date_to]": expiration,
+            "filter[strike_from]": strike,
+            "filter[strike_to]": strike,
+            "page[limit]": 1,
         }
         response = requests.get(BASE_URL, params=params)
         response.raise_for_status()
@@ -41,7 +61,7 @@ def simulate_option_watchlist_single(ticker, option_type, strike, expiration, da
                 "filter[type]": option_type,
                 "filter[exp_date_from]": expiration,
                 "filter[exp_date_to]": expiration,
-                "page[limit]": 1
+                "page[limit]": 1,
             }
             fallback_resp = requests.get(BASE_URL, params=fallback_params)
             fallback_data = fallback_resp.json().get("data", [])
@@ -54,18 +74,27 @@ def simulate_option_watchlist_single(ticker, option_type, strike, expiration, da
         else:
             attr = data[0]["attributes"]
 
-
-        attr = data[0]["attributes"]
+        # Extract pricing & Greeks
         last_price = float(attr.get("last", 0))
-        
         iv = float(attr.get("volatility", 0.3))
         if iv <= 0:
             iv = 0.3
 
+        bid = attr.get("bid")
+        ask = attr.get("ask")
+        volume = attr.get("volume")
+        open_interest = attr.get("open_interest")
+
+        delta = attr.get("delta")
+        gamma = attr.get("gamma")
+        theta = attr.get("theta")
+        vega = attr.get("vega")
+        rho = attr.get("rho")
+
         exp_date = datetime.strptime(expiration, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         today = datetime.now(timezone.utc)
 
-        # Robustly handle optional fields, applying defaults if they are empty or invalid
+        # --- Handle optional numeric fields ---
         try:
             days_to_gain = int(days_to_gain)
         except (TypeError, ValueError):
@@ -76,7 +105,7 @@ def simulate_option_watchlist_single(ticker, option_type, strike, expiration, da
             number_of_contracts = int(number_of_contracts)
         except (TypeError, ValueError):
             number_of_contracts = 1
-            
+
         try:
             average_cost_per_contract = float(average_cost_per_contract)
             if average_cost_per_contract <= 0:
@@ -94,28 +123,76 @@ def simulate_option_watchlist_single(ticker, option_type, strike, expiration, da
 
         for pct in scenarios:
             stock_up, stock_down = current_price * (1 + pct), current_price * (1 - pct)
+
             if option_type == "call":
                 premium_up = black_scholes_call_price(stock_up, strike, T_eval, risk_free_rate, iv)
                 premium_down = black_scholes_call_price(stock_down, strike, T_eval, risk_free_rate, iv)
-            else: # put
+            else:  # put
                 premium_up = black_scholes_put_price(stock_up, strike, T_eval, risk_free_rate, iv)
                 premium_down = black_scholes_put_price(stock_down, strike, T_eval, risk_free_rate, iv)
 
+            # % Change calculations
+            premium_up_pct_change = ((premium_up - last_price) / last_price) * 100 if last_price > 0 else 0
+            premium_down_pct_change = ((premium_down - last_price) / last_price) * 100 if last_price > 0 else 0
+
+            equity_up = premium_up * number_of_contracts * 100
+            equity_down = premium_down * number_of_contracts * 100
+
             rows.append({
-                "Ticker": ticker, "Current Underlying": round(current_price, 2), "Option Type": option_type,
-                "Strike": strike, "Expiration": expiration, "Number of Contracts": number_of_contracts,
-                "Average Cost per Contract": round(average_cost_per_contract, 2), "Equity Invested": round(total_cost, 2),
-                "Current Premium": round(last_price, 2), "Days to Gain": days_to_gain,
-                "Scenario % Change": f"±{int(pct * 100)}%", "Simulated Underlying (+)": round(stock_up, 2),
-                "Simulated Underlying (-)": round(stock_down, 2), "Simulated Premium (+)": round(premium_up, 2),
+                "Ticker": ticker,
+                "Option Type": option_type,
+                "Strike": strike,
+                "Expiration": expiration,
+                "Underlying Scenario % Change": f"±{int(pct * 100)}%",
+                "Current Underlying": round(current_price, 2),
+                "Simulated Underlying (+)": round(stock_up, 2),
+                "Simulated Underlying (-)": round(stock_down, 2),
+                "Current Premium": round(last_price, 2),
+                "Simulated Premium (+)": round(premium_up, 2),
+                "Simulated Premium (+) % Change": round(premium_up_pct_change, 2),
                 "Simulated Premium (-)": round(premium_down, 2),
+                "Simulated Premium (-) % Change": round(premium_down_pct_change, 2),
+                "Days to Gain": days_to_gain,
+                "Number of Contracts": number_of_contracts,
+                "Average Cost per Contract": round(average_cost_per_contract, 2),
+                "Equity Invested": round(total_cost, 2),
+                "Simulated Equity (+)": round(equity_up, 2),
+                "Simulated Equity (-)": round(equity_down, 2),
+                "Bid": bid,
+                "Ask": ask,
+                "Volume": volume,
+                "Open Interest": open_interest,
+                "Implied Volatility": round(iv * 100, 2),
+                "Delta": round(delta, 4) if delta is not None else "NA",
+                "Theta": round(theta, 4) if theta is not None else "NA",
+                "Gamma": round(gamma, 4) if gamma is not None else "NA",
+                "Vega": round(vega, 4) if vega is not None else "NA",
+                "Rho": round(rho, 4) if rho is not None else "NA",
             })
 
-        return pd.DataFrame(rows)
+        df = pd.DataFrame(rows)
+
+        # Reorder columns
+        column_order = [
+            "Ticker", "Option Type", "Strike", "Expiration",
+            "Underlying Scenario % Change", "Current Underlying",
+            "Simulated Underlying (+)", "Simulated Underlying (-)",
+            "Current Premium", "Simulated Premium (+)",
+            "Simulated Premium (+) % Change", "Simulated Premium (-)",
+            "Simulated Premium (-) % Change", "Days to Gain",
+            "Number of Contracts", "Average Cost per Contract",
+            "Equity Invested", "Simulated Equity (+)", "Simulated Equity (-)",
+            "Bid", "Ask", "Volume", "Open Interest",
+            "Implied Volatility", "Delta", "Theta", "Gamma", "Vega", "Rho"
+        ]
+
+        existing_columns_in_order = [col for col in column_order if col in df.columns]
+        return df[existing_columns_in_order]
 
     except Exception as e:
-        print(f"🚨 An error occurred in simulate_option_watchlist__single for {ticker}. Reason: {e}")
+        print(f"🚨 An error occurred in simulate_option_watchlist_single for {ticker}. Reason: {e}")
         return pd.DataFrame([{"Error": str(e)}])
+
 
 def whole_watchlist(contract_list):
     all_rows = []
@@ -129,7 +206,7 @@ def whole_watchlist(contract_list):
             expiration=contract["expiration"],
             days_to_gain=contract.get("days_to_gain"),
             number_of_contracts=contract.get("number_of_contracts"),
-            average_cost_per_contract=contract.get("average_cost_per_contract")
+            average_cost_per_contract=contract.get("average_cost_per_contract"),
         )
 
         if df.empty:
@@ -143,4 +220,3 @@ def whole_watchlist(contract_list):
     if not all_rows:
         print("🚨 All contracts failed or returned empty. Returning empty DataFrame.")
     return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame()
-

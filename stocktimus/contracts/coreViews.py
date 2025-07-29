@@ -106,6 +106,7 @@ class RunScreenerAPIView(APIView):
 
 class RunWatchlistAPIView(APIView):
     permission_classes = [IsAuthenticated]
+
     def post(self, request):
         try:
             contracts_input = request.data.get("contracts", [])
@@ -129,7 +130,6 @@ class RunWatchlistAPIView(APIView):
                 (c['ticker'], c['option_type'], str(float(c['strike'])), c['expiration']): c
                 for c in contracts_input
             }
-
 
             print("🚀 Incoming watchlist contracts (processed):", contracts_input)
 
@@ -173,12 +173,24 @@ class RunWatchlistAPIView(APIView):
                 except (ValueError, TypeError):
                     cost_input = None
 
-                current_premium = result.get('current_premium', 0)
+                current_premium = result.get('Current Premium', result.get('current_premium', 0))
                 final_cost = cost_input if cost_input is not None and cost_input > 0 else current_premium
 
-                result['average_cost_per_contract'] = round(final_cost, 2)
-                result['equity_invested'] = round(num_contracts * final_cost, 2)
-                result['number_of_contracts'] = num_contracts
+                # --- Rename and standardize keys for WatchlistTable ---
+                result['Average Cost per Contract'] = round(final_cost, 2)
+                result['Equity Invested'] = round(num_contracts * final_cost, 2)
+                result['Number of Contracts'] = num_contracts
+
+                # Ensure all columns exist (for consistent CSV exports)
+                required_columns = [
+                    "Underlying Scenario % Change", "Simulated Underlying (+)", "Simulated Underlying (-)",
+                    "Simulated Premium (+)", "Simulated Premium (+) % Change", "Simulated Premium (-)",
+                    "Simulated Premium (-) % Change", "Days to Gain", "Simulated Equity (+)", "Simulated Equity (-)",
+                    "Bid", "Ask", "Volume", "Open Interest", "Implied Volatility",
+                    "Delta", "Theta", "Gamma", "Vega", "Rho"
+                ]
+                for col in required_columns:
+                    result.setdefault(col, "NA" if col in ["Delta", "Theta", "Gamma", "Vega", "Rho"] else 0)
 
                 processed_results.append(result)
 
@@ -328,9 +340,11 @@ def assign_contracts_to_group(request, group_id):
     }, status=200)
 
 
+
 # --- Bulk Simulation Endpoint ---
 class RunBulkWatchlistAPIView(APIView):
     permission_classes = [IsAuthenticated]
+
     def post(self, request):
         contract_ids = request.data.get('contract_ids', [])
         contracts = SavedContract.objects.filter(id__in=contract_ids, user=request.user)
@@ -338,6 +352,7 @@ class RunBulkWatchlistAPIView(APIView):
         if not contracts:
             return Response({'error': 'No valid contracts found.'}, status=400)
 
+        # --- Prepare contracts data for simulation ---
         contracts_data = [
             {
                 'ticker': c.ticker,
@@ -352,7 +367,47 @@ class RunBulkWatchlistAPIView(APIView):
         ]
 
         df = whole_watchlist(contracts_data)
-        cleaned_data = clean_floats(df.to_dict(orient="records")) if not df.empty else []
+
+        if df.empty:
+            return Response([
+                {
+                    "Ticker": "N/A",
+                    "Note": "Bulk simulation returned no results. Check if contracts exist on EODHD UnicornBay."
+                }
+            ], status=200)
+
+        results = df.to_dict(orient="records")
+        processed_results = []
+
+        # --- Post-process results for consistency with WatchlistTable ---
+        for result, contract in zip(results, contracts_data):
+            try:
+                num_contracts = int(contract.get('number_of_contracts') or 1)
+            except (ValueError, TypeError):
+                num_contracts = 1
+
+            cost_input = contract.get('average_cost_per_contract') or 0
+            current_premium = result.get('Current Premium', result.get('current_premium', 0))
+            final_cost = cost_input if cost_input > 0 else current_premium
+
+            result['Average Cost per Contract'] = round(final_cost, 2)
+            result['Equity Invested'] = round(num_contracts * final_cost, 2)
+            result['Number of Contracts'] = num_contracts
+
+            # Ensure all expected columns are present
+            required_columns = [
+                "Underlying Scenario % Change", "Simulated Underlying (+)", "Simulated Underlying (-)",
+                "Simulated Premium (+)", "Simulated Premium (+) % Change", "Simulated Premium (-)",
+                "Simulated Premium (-) % Change", "Days to Gain", "Simulated Equity (+)", "Simulated Equity (-)",
+                "Bid", "Ask", "Volume", "Open Interest", "Implied Volatility",
+                "Delta", "Theta", "Gamma", "Vega", "Rho"
+            ]
+            for col in required_columns:
+                result.setdefault(col, "NA" if col in ["Delta", "Theta", "Gamma", "Vega", "Rho"] else 0)
+
+            processed_results.append(result)
+
+        cleaned_data = clean_floats(processed_results)
         return Response(cleaned_data, status=200)
 
 

@@ -1,0 +1,215 @@
+Below is the **step-by-step guide** formatted so you can paste it into a `.txt` file.
+**Yes** – after implementing these changes, when you click **Run Group**, the results of the multiple contracts from saved watchlist groups will appear in the Watchlist Table area. The Watchlist Table will still have **all existing functionalities** (column groupings, sorting, CSV export, etc.).
+
+---
+
+# **Watchlist Group Enhancements – Implementation Guide**
+
+This guide describes how to fix Watchlist Group field display (Premium, Underlying, Equity, Days) and enable "Run Group" to simulate all contracts in a group and display the results in the Watchlist Table.
+
+---
+
+## **Step 1. Backend: Add `SimulateGroupContractsAPIView`**
+
+**File:** `coreViews.py`
+
+**Why:**
+We need a dedicated endpoint that fetches all contracts in a watchlist group, runs them through `whole_watchlist()`, and returns results with all analytics (Greeks, Simulated Premium, Equity, etc.).
+
+**What to do:**
+Add this class-based view:
+
+```python
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.utils import timezone
+
+class SimulateGroupContractsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, group_id):
+        try:
+            group = WatchlistGroup.objects.get(pk=group_id, user=request.user)
+            contracts_qs = group.contracts.filter(user=request.user)
+            if not contracts_qs.exists():
+                return Response({'error': 'No contracts in this group.'}, status=400)
+
+            contracts_data = [
+                {
+                    'ticker': c.ticker,
+                    'option_type': c.option_type,
+                    'strike': c.strike,
+                    'expiration': c.expiration.isoformat(),
+                    'days_to_gain': c.dynamic_days_to_gain(),
+                    'number_of_contracts': c.number_of_contracts,
+                    'average_cost_per_contract': c.average_cost_per_contract,
+                }
+                for c in contracts_qs
+            ]
+
+            df = whole_watchlist(contracts_data)
+            if df.empty:
+                return Response([{
+                    "Ticker": "N/A",
+                    "Note": "Simulation returned no results. Check if contract exists on EODHD UnicornBay."
+                }], status=200)
+
+            results = df.to_dict(orient="records")
+            processed_results = []
+
+            for result, contract in zip(results, contracts_qs):
+                num_contracts = int(contract.number_of_contracts or 1)
+                cost_basis = contract.average_cost_per_contract or 0
+                current_premium = result.get("Current Premium", result.get("current_premium", 0))
+                final_cost = cost_basis if cost_basis > 0 else current_premium
+
+                result["Average Cost per Contract"] = round(final_cost, 2)
+                result["Equity Invested"] = round(num_contracts * final_cost, 2)
+                result["Number of Contracts"] = num_contracts
+
+                required_columns = [
+                    "Underlying Scenario % Change", "Simulated Underlying (+)", "Simulated Underlying (-)",
+                    "Simulated Premium (+)", "Simulated Premium (+) % Change", "Simulated Premium (-)",
+                    "Simulated Premium (-) % Change", "Days to Gain", "Simulated Equity (+)", "Simulated Equity (-)",
+                    "Bid", "Ask", "Volume", "Open Interest", "Implied Volatility",
+                    "Delta", "Theta", "Gamma", "Vega", "Rho"
+                ]
+                for col in required_columns:
+                    result.setdefault(col, "NA" if col in ["Delta","Theta","Gamma","Vega","Rho"] else 0)
+
+                contract.current_underlying_price = result.get("Current Underlying", contract.current_underlying_price)
+                contract.average_cost_per_contract = current_premium or contract.average_cost_per_contract
+                contract.last_refresh_date = timezone.now()
+                contract.save()
+
+                processed_results.append(result)
+
+            return Response(clean_floats(processed_results), status=200)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({"error": str(e)}, status=500)
+```
+
+---
+
+## **Step 2. Add URL for Group Simulation**
+
+**File:** `urls.py`
+
+**Why:**
+To expose the new API endpoint.
+
+**What to do:**
+Add the following import and URL pattern:
+
+```python
+from .coreViews import SimulateGroupContractsAPIView
+
+urlpatterns += [
+    path('watchlist-groups/<int:group_id>/simulate/', SimulateGroupContractsAPIView.as_view(), name='simulate-group-contracts'),
+]
+```
+
+---
+
+## **Step 3. Add Frontend API Helper**
+
+**File:** `api.js`
+
+**Why:**
+To call the new backend endpoint from the frontend.
+
+**What to do:**
+Add:
+
+```javascript
+export const simulateGroupContracts = (groupId) =>
+  apiClient.post(`/watchlist-groups/${groupId}/simulate/`);
+```
+
+---
+
+## **Step 4. Update WatchlistGroups.js**
+
+**File:** `WatchlistGroups.js`
+
+**Why:**
+Make the "Run Group" button trigger the new simulation endpoint.
+
+**What to do:**
+In **Watchlist.js**, add this function:
+
+```javascript
+import { simulateGroupContracts } from '../services/api';
+
+const handleRunGroup = async (groupId) => {
+  try {
+    const response = await simulateGroupContracts(groupId);
+    setWatchlistItems(response.data);  // Show results in Watchlist Table
+  } catch (error) {
+    console.error('Error running group:', error);
+    alert('Failed to run group simulation.');
+  }
+};
+```
+
+Ensure the "Run Group" button calls:
+
+```jsx
+<button onClick={() => handleRunGroup(group.id)}>Run Group</button>
+```
+
+---
+
+## **Step 5. Fix Field Display in WatchlistContractCard**
+
+**File:** `WatchlistContractCard.js`
+
+**Why:**
+Premium, Underlying, and Equity fields may display incorrectly if keys or data are outdated.
+
+**What to do:**
+Update JSX to:
+
+```jsx
+<p>
+  💵 Premium: ${contract.initial_cost_per_contract ?? 0} → ${contract.average_cost_per_contract ?? 0}
+</p>
+<p>
+  📈 Underlying: ${contract.underlying_price_at_add ?? 0} → ${contract.current_underlying_price ?? 0}
+</p>
+<p>
+  💰 Equity: ${Number(contract.number_of_contracts) * (contract.initial_cost_per_contract ?? 0)} →
+  ${Number(contract.number_of_contracts) * (contract.average_cost_per_contract ?? 0)}
+</p>
+<p>
+  ⏳ Days: {contract.initial_days_to_gain} goal | {contract.dynamic_days_to_gain} left
+</p>
+```
+
+---
+
+# **Why These Changes?**
+
+* **Backend**: To run simulations on group contracts and update current values.
+* **URLs**: To allow the frontend to call the new simulation endpoint.
+* **Frontend API**: To provide an easy-to-use function for the new endpoint.
+* **Components**: To ensure the UI is showing correct and current data.
+
+---
+
+# **Expected Outcome**
+
+* Clicking **Run Group** will simulate all contracts in that group and display results in the Watchlist Table.
+* **Watchlist Table** retains its existing functionalities:
+
+  * Column grouping
+  * Sorting
+  * CSV export
+* **Watchlist Groups** UI cards will show the correct Premium, Underlying, Equity, and Days left values after simulation or refresh.
+
+---
+
+Would you like me to **create a ready-to-copy code diff (patch) for all files** so you can paste updates directly?

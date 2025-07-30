@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import WatchlistAssignGroupsModal from './WatchlistAssignGroupsModal';
 import WatchlistContractCard from './WatchlistContractCard';
-import apiClient from '../services/api'; // ✅ Use authorized Axios client
+import apiClient, {
+  simulateGroupContracts, // ✅ Only used for running group simulations
+} from '../services/api';
 
 function WatchlistGroups({
   groups,
@@ -17,43 +19,80 @@ function WatchlistGroups({
   const [contractsForAssignment, setContractsForAssignment] = useState([]);
   const [collapsedGroups, setCollapsedGroups] = useState({});
 
+  // --- Toggle Collapse ---
   const toggleCollapse = (groupId) => {
-    setCollapsedGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
+    console.group(`📂 Toggling Group Collapse - Group ID: ${groupId}`);
+    console.log('Before:', collapsedGroups);
+    setCollapsedGroups((prev) => {
+      const updated = { ...prev, [groupId]: !prev[groupId] };
+      console.log('After:', updated);
+      console.groupEnd();
+      return updated;
+    });
   };
 
+  // --- Open Assign Modal ---
   const openAssignModalForContracts = (contracts) => {
+    console.group('🔗 Opening Assign Modal');
+    console.log('Contracts to assign:', contracts);
+    console.groupEnd();
     setContractsForAssignment(contracts);
     setAssignModalVisible(true);
   };
 
+  // --- Reset Days ---
   const handleResetDays = async (contractId) => {
+    console.group(`⏳ Resetting Countdown - Contract ID: ${contractId}`);
     try {
       await apiClient.patch(`/saved-contracts/${contractId}/reset-days/`);
+      console.log(`✅ Countdown reset for contract ID: ${contractId}`);
       await fetchGroups();
     } catch (err) {
-      console.error("Error resetting countdown:", err);
-      alert("Reset failed.");
+      console.error(`❌ Error resetting countdown for contract ID ${contractId}:`, err);
+      alert("Failed to reset countdown.");
     }
+    console.groupEnd();
   };
 
+  // --- Refresh Contract ---
   const handleRefresh = async (contractId) => {
+    console.group(`🔄 Refreshing Contract - Contract ID: ${contractId}`);
     try {
       await apiClient.patch(`/saved-contracts/${contractId}/refresh/`);
+      console.log(`✅ Data refreshed for contract ID: ${contractId}`);
       await fetchGroups();
     } catch (err) {
-      console.error("Error refreshing contract:", err);
-      alert("Refresh failed.");
+      console.error(`❌ Error refreshing contract ID ${contractId}:`, err);
+      alert("Failed to refresh contract data.");
     }
+    console.groupEnd();
   };
 
+  // --- Delete Contract ---
   const handleDeleteContract = async (contractId, groupId) => {
+    console.group(`🗑 Deleting Contract - Contract ID: ${contractId}, Group ID: ${groupId}`);
     try {
       await apiClient.delete(`/watchlist-groups/${groupId}/contracts/${contractId}/`);
+      console.log(`✅ Successfully removed contract ID: ${contractId} from group ID: ${groupId}`);
       await fetchGroups();
     } catch (err) {
-      console.error("Error removing contract from group:", err);
-      alert("Remove failed.");
+      console.error(`❌ Error removing contract ${contractId} from group ${groupId}:`, err);
+      alert("Failed to remove contract from group.");
     }
+    console.groupEnd();
+  };
+
+  // --- Run Group Simulation ---
+  const handleRunGroup = async (groupId) => {
+    console.group(`▶ Run Group Simulation - Group ID: ${groupId}`);
+    try {
+      console.log('Triggering onRunGroup with Group ID:', groupId);
+      onRunGroup(groupId);
+    } catch (err) {
+      console.error(`❌ Error running group simulation for group ID ${groupId}:`, err);
+      alert("Failed to run group simulation.");
+    }
+    console.groupEnd();
   };
 
   return (
@@ -63,6 +102,11 @@ function WatchlistGroups({
       <div className="space-y-4">
         {groups.map((group) => {
           const isCollapsed = collapsedGroups[group.id];
+          console.group(`📦 Rendering Group - ID: ${group.id}`);
+          console.log('Name:', group.name);
+          console.log('Collapsed State:', isCollapsed);
+          console.log('Contracts Count:', group.contracts.length);
+          console.groupEnd();
 
           return (
             <div key={group.id} className="card card-hover">
@@ -78,7 +122,7 @@ function WatchlistGroups({
                 </button>
 
                 <button
-                  onClick={() => onRunGroup(group.id)}
+                  onClick={() => handleRunGroup(group.id)}
                   className="btn-primary text-xs"
                 >
                   Run Group
@@ -89,6 +133,7 @@ function WatchlistGroups({
                 <>
                   {group.contracts.length > 0 ? (
                     <div className="text-sm text-muted pl-1 space-y-2">
+                      {console.log(`📝 Group ${group.id} Contracts:`, group.contracts)}
                       {[...group.contracts]
                         .sort((a, b) => a.ticker.localeCompare(b.ticker))
                         .map((c) => (
@@ -97,6 +142,9 @@ function WatchlistGroups({
                             contract={c}
                             isSelected={selectedContracts.includes(c.id)}
                             onSelect={(id, checked) => {
+                              console.log(
+                                `☑ Contract ID ${id} was ${checked ? 'selected' : 'deselected'}.`
+                              );
                               if (checked) {
                                 setSelectedContracts((prev) => [...prev, id]);
                               } else {
@@ -127,7 +175,10 @@ function WatchlistGroups({
           <button onClick={handleRunSelected} className="btn-primary">Run Selected</button>
           <button onClick={handleBulkDelete} className="btn-red">Delete Selected</button>
           <button
-            onClick={() => openAssignModalForContracts(selectedContracts)}
+            onClick={() => {
+              console.log('Assigning selected contracts:', selectedContracts);
+              openAssignModalForContracts(selectedContracts);
+            }}
             className="btn-primary"
           >
             Assign Selected to Groups
@@ -137,13 +188,21 @@ function WatchlistGroups({
 
       <WatchlistAssignGroupsModal
         isOpen={assignModalVisible}
-        onClose={() => setAssignModalVisible(false)}
+        onClose={() => {
+          console.log('❌ Closing Assign Modal');
+          setAssignModalVisible(false);
+        }}
         groups={groups}
         fetchGroups={fetchGroups}
         contracts={contractsForAssignment}
         onAssign={async (selectedGroupIds, mode) => {
+          console.group('📤 Assigning Contracts to Groups');
+          console.log('Selected Groups:', selectedGroupIds);
+          console.log('Contracts for Assignment:', contractsForAssignment);
+          console.log('Mode:', mode);
           try {
             for (const groupId of selectedGroupIds) {
+              console.log(`➡ Sending assign request to group ID: ${groupId}`);
               await apiClient.post(`/watchlist-groups/${groupId}/assign/`, {
                 contract_ids: contractsForAssignment,
                 mode,
@@ -153,9 +212,10 @@ function WatchlistGroups({
             setAssignModalVisible(false);
             await fetchGroups();
           } catch (error) {
-            console.error('Error assigning contracts:', error);
+            console.error('❌ Error assigning contracts to groups:', error);
             alert('Failed to assign contracts to groups.');
           }
+          console.groupEnd();
         }}
       />
     </div>

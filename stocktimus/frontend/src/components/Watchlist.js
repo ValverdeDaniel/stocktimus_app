@@ -9,7 +9,8 @@ import {
   runBulkWatchlist,
   deleteSavedContract,
   assignContractsToGroup,
-} from '../services/api'; // ✅ Import centralized API functions
+  simulateGroupContracts, // ✅ API helper for running group simulations
+} from '../services/api';
 
 function Watchlist() {
   const [watchlistItems, setWatchlistItems] = useState([]);
@@ -17,17 +18,36 @@ function Watchlist() {
   const [selectedContracts, setSelectedContracts] = useState([]);
   const [groups, setGroups] = useState([]);
 
+  // For debug/missing-column checks
+  const EXPECTED_COLUMNS = [
+    "Ticker", "Option Type", "Strike", "Expiration",
+    "Current Premium", "Current Underlying",
+    "Number of Contracts", "Average Cost per Contract",
+    "Equity Invested", "Days to Gain",
+    "Bid", "Ask", "Volume", "Open Interest",
+    "Implied Volatility", "Delta", "Theta", "Gamma", "Vega", "Rho"
+  ];
+
   useEffect(() => {
     fetchSavedContracts();
     fetchGroups();
   }, []);
 
-  // --- Fetch Saved Contracts ---
+  // --- Fetch Saved Contracts (with normalization) ---
   const fetchSavedContracts = async () => {
     try {
       const response = await getSavedContracts();
-      console.log('Saved Contracts:', response.data);
-      setWatchlistItems(response.data); // ✅ Store saved contracts in watchlistItems
+      console.log('📥 API Response (Saved Contracts):', response.data);
+      if (response.data?.length > 0) {
+        console.log('🔑 Keys in first saved contract:', Object.keys(response.data[0]));
+      } else {
+        console.warn('⚠ No saved contracts returned.');
+      }
+
+      const normalized = normalizeDataForTable(response.data);
+      console.log('🔍 Normalized Saved Contracts:', normalized);
+      setWatchlistItems(normalized);
+      console.log('📊 Updated Watchlist Items (Saved):', normalized);
     } catch (error) {
       console.error('Error loading saved contracts:', error.response?.data || error.message);
     }
@@ -37,23 +57,65 @@ function Watchlist() {
   const fetchGroups = async () => {
     try {
       const response = await getWatchlistGroups();
+      console.log('📥 API Response (Groups):', response.data);
       setGroups(Array.isArray(response.data) ? response.data : []);
+      console.log('📊 Updated Groups:', response.data);
     } catch (error) {
       console.error('Error loading groups:', error.response?.data || error.message);
     }
   };
 
-  // --- Run Selected Contracts ---
+  // --- Normalizer for saved-contract payloads ---
+  const normalizeDataForTable = (data) => {
+    console.log(`🔄 Normalizing ${data?.length || 0} rows...`);
+    return data.map((item, index) => {
+      console.log(`Row ${index} Raw Data:`, item);
+
+      const normalized = {
+        "Ticker": item.Ticker ?? item.ticker ?? '',
+        "Option Type": item["Option Type"] ?? item.option_type ?? '',
+        "Strike": item.Strike ?? item.strike ?? '',
+        "Expiration": item.Expiration ?? item.expiration ?? '',
+        "Current Premium": item["Current Premium"] ?? item.current_premium ?? 0,
+        "Current Underlying": item["Current Underlying"] ?? item.current_underlying_price ?? 0,
+        "Number of Contracts": item["Number of Contracts"] ?? item.number_of_contracts ?? 0,
+        "Average Cost per Contract": item["Average Cost per Contract"] ?? item.average_cost_per_contract ?? 0,
+        "Equity Invested": item["Equity Invested"] ?? item.equity_invested ?? 0,
+        "Days to Gain": item["Days to Gain"] ?? item.days_to_gain ?? 0,
+        "Bid": item.Bid ?? item.bid ?? 0,
+        "Ask": item.Ask ?? item.ask ?? 0,
+        "Volume": item.Volume ?? item.volume ?? 0,
+        "Open Interest": item["Open Interest"] ?? item.open_interest ?? 0,
+        "Implied Volatility": item["Implied Volatility"] ?? item.implied_volatility ?? 0,
+        "Delta": item.Delta ?? item.delta ?? 'NA',
+        "Theta": item.Theta ?? item.theta ?? 'NA',
+        "Gamma": item.Gamma ?? item.gamma ?? 'NA',
+        "Vega": item.Vega ?? item.vega ?? 'NA',
+        "Rho": item.Rho ?? item.rho ?? 'NA',
+      };
+
+      console.log(`Row ${index} Normalized Data:`, normalized);
+      const missing = EXPECTED_COLUMNS.filter(col => !(col in normalized));
+      if (missing.length > 0) {
+        console.warn(`⚠ Row ${index} is missing columns:`, missing);
+      }
+
+      return normalized;
+    });
+  };
+
+  // --- Run Selected Contracts (bypass normalization) ---
   const handleRunSelected = async () => {
     try {
       const response = await runBulkWatchlist({ contract_ids: selectedContracts });
-      const data = response.data;
+      console.log('📥 API Response (Run Selected):', response.data);
 
-      if (Array.isArray(data)) {
-        setWatchlistItems((prev) => [...prev, ...data]);
+      if (Array.isArray(response.data)) {
+        console.log('🔍 Bypassing normalization for simulation—using raw data');
+        setWatchlistItems(response.data);
       } else {
-        console.error('Unexpected response running selected contracts:', data);
-        alert(`Server returned unexpected response: ${JSON.stringify(data)}`);
+        console.error('Unexpected response running selected contracts:', response.data);
+        alert(`Server returned unexpected response: ${JSON.stringify(response.data)}`);
       }
     } catch (error) {
       console.error('Error running selected contracts:', error.response?.data || error.message);
@@ -61,28 +123,22 @@ function Watchlist() {
     }
   };
 
-  // --- Run a Group ---
+  // --- Run a Group (bypass normalization) ---
   const handleRunGroup = async (groupId) => {
     try {
-      const group = groups.find((g) => g.id === groupId);
-      if (!group || !Array.isArray(group.contracts)) {
-        console.error('Unexpected group data:', group);
-        alert('Invalid group data received from server.');
-        return;
-      }
+      console.log(`▶ Running group with ID: ${groupId}`);
+      const response = await simulateGroupContracts(groupId);
+      console.log('📥 API Response (Run Group):', response.data);
 
-      const contractIds = group.contracts.map((c) => c.id);
-      const runResponse = await runBulkWatchlist({ contract_ids: contractIds });
-      const data = runResponse.data;
-
-      if (Array.isArray(data)) {
-        setWatchlistItems((prev) => [...prev, ...data]);
-      } else if (data.error) {
-        console.error('Server error running group:', data);
-        alert(`Server error: ${data.error}`);
+      if (Array.isArray(response.data)) {
+        console.log('🔍 Bypassing normalization for group simulation—using raw data');
+        setWatchlistItems(response.data);
+      } else if (response.data.error) {
+        console.error('Server error running group:', response.data);
+        alert(`Server error: ${response.data.error}`);
       } else {
-        console.error('Unexpected response running group:', data);
-        alert(`Unexpected server response: ${JSON.stringify(data)}`);
+        console.error('Unexpected response running group:', response.data);
+        alert(`Unexpected server response: ${JSON.stringify(response.data)}`);
       }
     } catch (error) {
       console.error('Error running group:', error.response?.data || error.message);
@@ -109,8 +165,10 @@ function Watchlist() {
         groups={groups}
         fetchGroups={fetchGroups}
         fetchSavedContracts={fetchSavedContracts}
+        // onSimulationComplete now bypasses normalization so you see every column
         onSimulationComplete={(results) => {
-          console.log('✅ simulation results:', results);
+          console.log('✅ Simulation Results:', results);
+          console.log('🔍 Bypassing normalization for ad-hoc simulator—using raw data');
           setWatchlistItems(results);
         }}
       />
@@ -126,7 +184,7 @@ function Watchlist() {
         handleBulkAssign={async (selectedGroupIds) => {
           try {
             for (const groupId of selectedGroupIds) {
-              await assignContractsToGroup(groupId, selectedContracts); // ✅ Use API helper
+              await assignContractsToGroup(groupId, selectedContracts);
             }
             alert('Contracts assigned successfully!');
             setSelectedContracts([]);

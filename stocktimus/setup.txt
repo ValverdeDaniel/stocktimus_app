@@ -84,6 +84,24 @@ git pull origin main
 # 3. Create your new branch and switch to it (-b creates the branch)
 git checkout -b <your-new-branch-name>
 
+----------------------------------------------------
+# Create and push a new branch (watchlistgroups3)
+
+1. Create and switch to the branch:
+   git checkout -b watchlistgroups3
+
+2. Push the branch to remote and set upstream:
+   git push -u origin watchlistgroups3
+
+3. Check your current branch:
+   git branch
+-----------------------------------------------------------
+
+
+
+
+
+
 
 ### PHASE 2: DO YOUR WORK ON THE NEW BRANCH ###
 
@@ -147,3 +165,7 @@ git branch -d <your-new-branch-name>
 
 # 2. Delete the remote branch (optional, but good practice)
 git push origin --delete <your-new-branch-name>
+
+
+
+

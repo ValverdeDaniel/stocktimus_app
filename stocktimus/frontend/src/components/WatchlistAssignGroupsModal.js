@@ -15,12 +15,15 @@ export default function WatchlistAssignGroupsModal({
   const [error, setError] = useState('');
 
   useEffect(() => {
+    console.log("🔄 Modal state changed. Resetting selectedGroups and error.");
     setSelectedGroups([]);
     setError('');
   }, [isOpen]);
 
   const handleCreateGroup = async () => {
+    console.log("➕ Attempting to create a new group:", newGroupName);
     if (!newGroupName.trim()) {
+      console.warn("⚠ Group name cannot be empty.");
       setError('Group name cannot be empty.');
       return;
     }
@@ -29,28 +32,42 @@ export default function WatchlistAssignGroupsModal({
     try {
       const response = await createWatchlistGroup({ name: newGroupName });
       const newGroup = response.data;
+      console.log("✅ New group created:", newGroup);
 
       setSelectedGroups((prev) => [...prev, newGroup.id]);
+      console.log("📌 Updated selectedGroups:", [...selectedGroups, newGroup.id]);
+
       setNewGroupName('');
 
       // Refresh group list
+      console.log("🔄 Fetching updated groups...");
       await fetchGroups?.();
     } catch (error) {
-      console.error('Error creating group:', error.response?.data || error.message);
+      console.error('❌ Error creating group:', error.response?.data || error.message);
       setError(`Failed to create group: ${error.response?.data?.error || error.message}`);
     } finally {
       setIsCreating(false);
+      console.log("⏹ Finished group creation attempt.");
     }
   };
 
   const handleSave = async () => {
+    console.log("💾 Saving assignment with selected groups:", selectedGroups);
+    console.log("📦 Contracts being assigned:", contracts);
+
     if (contracts.some((id) => typeof id !== 'number')) {
+      console.error("❌ One or more contracts haven't been saved yet:", contracts);
       alert("One or more contracts haven't been saved yet.");
       return;
     }
     await onAssign(selectedGroups, 'append'); // 🔁 always append
+    console.log("✅ Contracts assigned successfully to selected groups.");
+
     setSelectedGroups([]);
+    console.log("🔄 Cleared selectedGroups state.");
+
     onClose();
+    console.log("🔒 Modal closed after saving.");
   };
 
   if (!isOpen) return null;
@@ -81,7 +98,9 @@ export default function WatchlistAssignGroupsModal({
                   const updated = e.target.checked
                     ? [...selectedGroups, group.id]
                     : selectedGroups.filter((id) => id !== group.id);
+                  console.log(`🔘 Toggled group '${group.name}' (ID: ${group.id}) → ${e.target.checked ? 'Selected' : 'Deselected'}`);
                   setSelectedGroups(updated);
+                  console.log("📌 Updated selectedGroups:", updated);
                 }}
               />
               {group.name}
@@ -94,7 +113,10 @@ export default function WatchlistAssignGroupsModal({
             className="input flex-1"
             placeholder="New Watchlist Contract Group"
             value={newGroupName}
-            onChange={(e) => setNewGroupName(e.target.value)}
+            onChange={(e) => {
+              setNewGroupName(e.target.value);
+              console.log("✍ Updated newGroupName:", e.target.value);
+            }}
           />
           <button
             className="btn-primary text-xs"
@@ -106,7 +128,13 @@ export default function WatchlistAssignGroupsModal({
         </div>
 
         <div className="flex gap-2 mt-4 justify-end">
-          <button className="btn-secondary text-xs" onClick={onClose}>
+          <button
+            className="btn-secondary text-xs"
+            onClick={() => {
+              console.log("❌ Cancel clicked. Closing modal.");
+              onClose();
+            }}
+          >
             Cancel
           </button>
           <button

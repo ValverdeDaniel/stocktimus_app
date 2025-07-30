@@ -19,15 +19,20 @@ function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, on
   const [assignModalVisible, setAssignModalVisible] = useState(false);
   const [newlySavedContractIds, setNewlySavedContractIds] = useState([]);
 
+  // --- Handle Contract Change ---
   const handleContractChange = (index, updatedFields) => {
+    console.log(`✏ Updating contract at index ${index} with:`, updatedFields);
     setContracts(prev => {
       const updated = [...prev];
       updated[index] = { ...updated[index], ...updatedFields };
+      console.log('📦 Updated Contracts State:', updated);
       return updated;
     });
   };
 
+  // --- Add New Contract ---
   const handleAddContract = () => {
+    console.log('➕ Adding new empty contract.');
     setContracts(prev => [
       ...prev,
       {
@@ -40,13 +45,23 @@ function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, on
         average_cost_per_contract: '',
       },
     ]);
+    console.log('📦 Current Contracts State After Add:', contracts);
   };
 
+  // --- Remove Contract ---
   const handleRemoveContract = (index) => {
-    setContracts(prev => prev.filter((_, i) => i !== index));
+    console.log(`🗑 Removing contract at index ${index}:`, contracts[index]);
+    setContracts(prev => {
+      const updated = prev.filter((_, i) => i !== index);
+      console.log('📦 Updated Contracts After Remove:', updated);
+      return updated;
+    });
   };
 
+  // --- Run Simulator ---
   const runSimulatorAndGetResults = async (inputContracts) => {
+    console.log('🚀 Preparing contracts for simulation:', inputContracts);
+
     const sanitizedContracts = inputContracts.map(c => {
       const contract = {
         ticker: c.ticker,
@@ -60,26 +75,33 @@ function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, on
       return contract;
     });
 
-    const response = await apiClient.post('/run-watchlist/', {
-      contracts: sanitizedContracts,
-    });
+    console.log('🧹 Sanitized Contracts:', sanitizedContracts);
+
+    const response = await apiClient.post('/run-watchlist/', { contracts: sanitizedContracts });
+    console.log('✅ API Response from /run-watchlist/:', response.data);
 
     return response.data;
   };
 
   const handleRunSimulator = async () => {
     try {
+      console.log('▶ Running watchlist simulator with contracts:', contracts);
       const results = await runSimulatorAndGetResults(contracts);
+      console.log('🎯 Simulation Results:', results);
       onSimulationComplete(results);
+      console.log('📊 Watchlist Table updated with simulation results.');
       alert('Watchlist simulation run successfully!');
     } catch (error) {
-      console.error('Error running simulator:', error);
+      console.error('❌ Error running simulator:', error);
       alert('Failed to run simulator.');
     }
   };
 
+  // --- Save Contracts ---
   const handleSaveContracts = async () => {
+    console.log('💾 Saving contracts:', contracts);
     if (contracts.some(c => !c.ticker || !c.strike || !c.expiration)) {
+      console.warn('⚠ Missing required fields in one or more contracts.');
       alert("Please ensure all contracts have a Ticker, Strike, and Expiration date.");
       return;
     }
@@ -97,20 +119,24 @@ function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, on
         if (contract.number_of_contracts) contractData.number_of_contracts = parseInt(contract.number_of_contracts);
         if (contract.average_cost_per_contract) contractData.average_cost_per_contract = parseFloat(contract.average_cost_per_contract);
 
+        console.log('📤 Saving contract to /saved-contracts/:', contractData);
         const response = await apiClient.post('/saved-contracts/', contractData);
+        console.log('✅ Saved Contract Response:', response.data);
         savedIds.push(response.data.id);
       }
 
       setNewlySavedContractIds(savedIds);
+      console.log('📦 Newly Saved Contract IDs:', savedIds);
       setAssignModalVisible(true);
-
     } catch (error) {
-      console.error('Error saving contracts:', error);
+      console.error('❌ Error saving contracts:', error);
       alert(`A problem occurred while saving: ${error.message}`);
     }
   };
 
+  // --- Assign Contracts to Groups ---
   const handleAssignToGroups = async (selectedGroupIds) => {
+    console.log('🔗 Assigning contracts to groups:', selectedGroupIds);
     if (selectedGroupIds.length === 0) {
       alert("No groups selected. Closing.");
       setAssignModalVisible(false);
@@ -119,11 +145,13 @@ function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, on
 
     try {
       for (const groupId of selectedGroupIds) {
+        console.log(`📤 Assigning to group ${groupId} with contracts:`, newlySavedContractIds);
         await apiClient.post(`/watchlist-groups/${groupId}/assign-contracts/`, {
           contract_ids: newlySavedContractIds,
         });
       }
 
+      console.log('✅ Successfully assigned contracts to groups.');
       alert('Contracts saved and assigned successfully!');
       setAssignModalVisible(false);
       setNewlySavedContractIds([]);
@@ -139,11 +167,11 @@ function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, on
         },
       ]);
 
+      console.log('🔄 Fetching latest groups and saved contracts.');
       await fetchGroups();
       await fetchSavedContracts();
-
     } catch (error) {
-      console.error('Error assigning contracts to groups:', error);
+      console.error('❌ Error assigning contracts to groups:', error);
       alert(`Failed to assign contracts: ${error.message}`);
     }
   };

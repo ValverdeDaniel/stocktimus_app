@@ -19,6 +19,7 @@ from .coreViews import (
     remove_contract_from_group,
     RunBulkWatchlistAPIView,
     TickerSearchAPIView,
+    SimulateGroupContractsAPIView,  # <-- Added this import
 )
 from .views.optionSearch import option_chain
 
@@ -41,12 +42,11 @@ urlpatterns = [
     # --- Watchlist Groups ---
     path('watchlist-groups/', WatchlistGroupListCreateAPIView.as_view(), name='watchlist-group-list'),
     path('watchlist-groups/<int:pk>/', WatchlistGroupUpdateDeleteAPIView.as_view(), name='watchlist-group-detail'),
-    # ✅ Corrected path to be more descriptive and match frontend calls
     path('watchlist-groups/<int:group_id>/assign-contracts/', assign_contracts_to_group, name='assign-contracts-to-group'),
+    path('watchlist-groups/<int:group_id>/simulate/', SimulateGroupContractsAPIView.as_view(), name='simulate-group-contracts'),  # <-- New endpoint
     path('watchlist-groups/<int:group_id>/contracts/<int:contract_id>/', remove_contract_from_group, name='remove-contract-from-group'),
 
     # --- Ticker & Option Chain Search ---
-    # ✅ Corrected path from 'tickers/' to 'ticker-search/' to fix 404 error
     path('ticker-search/', TickerSearchAPIView.as_view(), name='ticker-search'),
     path('options-chain/', option_chain, name='fetch-option-chain'),
     

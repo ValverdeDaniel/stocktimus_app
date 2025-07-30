@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { CSVLink } from 'react-csv';
 import { FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
 
@@ -50,6 +50,22 @@ function WatchlistTable({ items, selectedTickers }) {
       : items;
   }, [items, selectedTickers]);
 
+  // --- Debug Log for First Row Keys ---
+  if (visibleItems.length > 0) {
+    const firstRowKeys = Object.keys(visibleItems[0]);
+    const missingFromColumns = firstRowKeys.filter(k => !COLUMN_GROUPS.All.includes(k));
+    const missingFromData = COLUMN_GROUPS.All.filter(c => !(c in visibleItems[0]));
+    console.log("🧪 WatchlistTable Debug → First Row Keys:", firstRowKeys);
+    console.log("🧪 Missing in COLUMN_GROUPS.All but in data:", missingFromColumns);
+    console.log("🧪 Columns defined but missing in data:", missingFromData);
+  }
+
+  // --- Track group changes ---
+  const handleGroupChange = (group) => {
+    console.log(`🔄 Column Group Changed to: ${group}`);
+    setSelectedGroup(group);
+  };
+
   // --- Determine which columns to show based on selected group ---
   const visibleColumns = useMemo(() => {
     if (selectedGroup === "All") return COLUMN_GROUPS.All;
@@ -92,8 +108,26 @@ function WatchlistTable({ items, selectedTickers }) {
     });
   }, [sortedData, visibleColumns]);
 
+  // --- Extra Debug Logs ---
+  useEffect(() => {
+    if (sortedData.length > 0) {
+      console.log("📋 First 3 rows of sortedData:", sortedData.slice(0, 3));
+    }
+  }, [sortedData]);
+
+  useEffect(() => {
+    if (visibleItems.length > 0) {
+      const firstRow = visibleItems[0];
+      const missingColumns = visibleColumns.filter(col => !(col in firstRow));
+      if (missingColumns.length > 0) {
+        console.warn("⚠ Missing columns in first row:", missingColumns);
+      }
+    }
+  }, [visibleColumns, visibleItems]);
+
   // --- Sorting handler ---
   const handleSort = (column) => {
+    console.log(`🔀 Sorting by column: ${column}`);
     if (sortConfig.key === column) {
       setSortConfig({
         key: column,
@@ -124,7 +158,7 @@ function WatchlistTable({ items, selectedTickers }) {
           {Object.keys(COLUMN_GROUPS).map(group => (
             <button
               key={group}
-              onClick={() => setSelectedGroup(group)}
+              onClick={() => handleGroupChange(group)}
               className={`tab-button ${selectedGroup === group ? 'tab-selected' : 'tab-unselected'}`}
             >
               {group}

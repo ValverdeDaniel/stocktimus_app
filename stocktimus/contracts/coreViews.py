@@ -340,6 +340,75 @@ def assign_contracts_to_group(request, group_id):
     }, status=200)
 
 
+# --- Simulate Watchlist Group Contracts ---
+class SimulateGroupContractsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, group_id):
+        try:
+            group = WatchlistGroup.objects.get(pk=group_id, user=request.user)
+            contracts_qs = group.contracts.filter(user=request.user)
+            if not contracts_qs.exists():
+                return Response({'error': 'No contracts in this group.'}, status=400)
+
+            contracts_data = [
+                {
+                    'ticker': c.ticker,
+                    'option_type': c.option_type,
+                    'strike': c.strike,
+                    'expiration': c.expiration.isoformat(),
+                    'days_to_gain': c.dynamic_days_to_gain(),
+                    'number_of_contracts': c.number_of_contracts,
+                    'average_cost_per_contract': c.average_cost_per_contract,
+                }
+                for c in contracts_qs
+            ]
+
+            df = whole_watchlist(contracts_data)
+            if df.empty:
+                return Response([{
+                    "Ticker": "N/A",
+                    "Note": "Simulation returned no results. Check if contract exists on EODHD UnicornBay."
+                }], status=200)
+
+            results = df.to_dict(orient="records")
+            processed_results = []
+
+            for result, contract in zip(results, contracts_qs):
+                num_contracts = int(contract.number_of_contracts or 1)
+                cost_basis = contract.average_cost_per_contract or 0
+                current_premium = result.get("Current Premium", result.get("current_premium", 0))
+                final_cost = cost_basis if cost_basis > 0 else current_premium
+
+                # Add computed values
+                result["Average Cost per Contract"] = round(final_cost, 2)
+                result["Equity Invested"] = round(num_contracts * final_cost, 2)
+                result["Number of Contracts"] = num_contracts
+
+                # Ensure all expected columns are present
+                required_columns = [
+                    "Underlying Scenario % Change", "Simulated Underlying (+)", "Simulated Underlying (-)",
+                    "Simulated Premium (+)", "Simulated Premium (+) % Change", "Simulated Premium (-)",
+                    "Simulated Premium (-) % Change", "Days to Gain", "Simulated Equity (+)", "Simulated Equity (-)",
+                    "Bid", "Ask", "Volume", "Open Interest", "Implied Volatility",
+                    "Delta", "Theta", "Gamma", "Vega", "Rho"
+                ]
+                for col in required_columns:
+                    result.setdefault(col, "NA" if col in ["Delta", "Theta", "Gamma", "Vega", "Rho"] else 0)
+
+                # Update contract record
+                contract.current_underlying_price = result.get("Current Underlying", contract.current_underlying_price)
+                contract.average_cost_per_contract = current_premium or contract.average_cost_per_contract
+                contract.last_refresh_date = timezone.now()
+                contract.save()
+
+                processed_results.append(result)
+
+            return Response(clean_floats(processed_results), status=200)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({"error": str(e)}, status=500)
 
 
 

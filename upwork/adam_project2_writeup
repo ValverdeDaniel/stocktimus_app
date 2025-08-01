@@ -1,0 +1,185 @@
+DEVELOPER SPECIFICATION: PHASED STOCK VALUATION & BACKTESTING TOOL
+
+\================================================================================
+
+1. OVERVIEW
+
+---
+
+This document defines requirements for a multi-phase stock valuation and backtesting platform.
+Phases:
+• Phase 1 – Foundational 3-Scenario DCF Model & Visualization (MVP)
+• Phase 2 – Model Enhancement & Relative Valuation
+• Phase 3 – Advanced Modeling, Data Enrichment & Scalability
+
+Key goals:
+• Calculate and chart intrinsic fair-value bands vs. actual price
+• Backtest quarter-by-quarter using point-in-time data
+• Progress from static scenarios to probabilistic and peer-based models
+• Evolve into a scalable, API-driven service with rich data inputs
+
+\================================================================================
+2\. PHASE 1: FOUNDATIONAL 3-SCENARIO DCF MODEL & VISUALIZATION (MVP)
+--------------------------------------------------------------------
+
+2.1 Objective
+Build a backtestable intrinsic valuation engine for a single ticker.
+Deliver a time-series chart comparing historical closing price against Bear/Base/Bull fair-value bands.
+
+2.2 Inputs (per historical date)
+• Ticker symbol
+• Trailing Twelve Months (TTM) data as of quarter-end:
+– Revenue
+– EBIT (or Operating Income)
+– Depreciation & Amortization (D\&A)
+– Capital Expenditures (CapEx)
+– Change in Net Working Capital (NWC)
+• Corporate tax rate
+• Shares outstanding (basic and diluted)
+• Total debt and cash & cash equivalents
+• Scenario parameters (Bull/Base/Bear):
+– Revenue growth rate
+– EBIT margin (% of revenue)
+– Perpetual growth rate (for terminal value)
+– Discount rate (WACC)
+
+2.3 Calculation Steps
+For each scenario:
+1\. Project Free Cash Flow to Firm (FCFF) for years 1–10:
+FCFF = EBIT × (1–Tax Rate) + D\&A – CapEx – ΔNWC
+2\. Compute Terminal Value at year-10 via Gordon Growth:
+TV = (FCFF₁₀ × (1 + g)) / (WACC – g)
+3\. Discount all FCFF and TV back to present using WACC
+4\. Sum = Enterprise Value (EV)
+5\. Equity Value = EV – Net Debt
+6\. Fair Value per Share = Equity Value / Shares Outstanding
+
+2.4 Backtesting Engine
+• Inputs: ticker, start/end dates (e.g. last 10 years)
+• Loop quarter-by-quarter (backwards)
+• Fetch point-in-time fundamentals and closing price at quarter-end
+• Run 3-scenario DCF → produce series of \[Date, Price, Bear, Base, Bull]
+
+2.5 Visualization Requirements
+• Chart X-axis: Date; Y-axis: Price per share
+• Plot actual closing price as solid line
+• Plot Base fair value as solid line
+• Plot Bear/Bull as shaded band or dashed lines bounding Base
+
+2.6 Data Source
+• EODHD API (or equivalent) for:
+– Historical fundamentals (TTM) at each quarter
+– Quarter-end closing prices
+• Requirements:
+– Point-in-time data support
+– Rate-limit handling and retries
+
+2.7 Error Handling & Caching
+• Cache raw API responses locally (quarterly granularity)
+• Log and skip missing data; mark gaps in output series
+• Fallback defaults (e.g., assume ΔNWC = 0 if missing) with warning logs
+
+2.8 Testing & Validation
+• Unit tests for:
+– FCFF calculation
+– Terminal value formula
+– Discount factor logic
+• Integration test: run model on a known company (e.g., AAPL back to 2015) and compare to published DCF examples
+• Backtest smoke test: ensure no uncaught exceptions through full date range
+
+2.9 Performance Considerations
+• Batch API requests where supported (fetch fundamentals for multiple quarters in one call)
+• Support optional parallel fetching with configurable concurrency
+• Throttle to comply with API rate limits
+
+2.10 Configuration & Defaults
+• Scenario parameters stored in JSON/YAML config
+• Provide industry-standard defaults for growth, margin, WACC
+• Enable per-scenario overrides via CLI flags or config file
+
+\================================================================================
+3\. PHASE 2: MODEL ENHANCEMENT & RELATIVE VALUATION
+---------------------------------------------------
+
+3.1 Monte Carlo DCF
+• Replace static scenarios with probabilistic inputs
+• Define key drivers (growth, margin, g, WACC) as distributions (e.g., normal, triangular)
+• Run N simulations (configurable, default N=5,000)
+• Derive fair-value bands from percentiles (e.g., 25th–75th)
+
+3.2 Peer-Based Relative Valuation
+• Peer selection: same GICS sector + market-cap within 0.5–2×
+• Fetch peer fundamentals and historical P/E, ROE, growth
+• Build regression: P/E = f(growth, ROE, …)
+• Estimate target’s P/E via regression, multiply by its EPS → fair value
+• Plot relative valuation line alongside intrinsic bands
+
+\================================================================================
+4\. PHASE 3: ADVANCED MODELING, DATA ENRICHMENT & SCALABILITY
+-------------------------------------------------------------
+
+4.1 Gradient-Boosted Factor Model
+• Select factors: Value, Growth, Quality, Sentiment, Macro
+• Train XGBoost/LightGBM on broad stock universe
+• Incorporate SHAP for interpretability
+• Output per-stock predicted fair value
+
+4.2 Data Enrichment
+• Macro data from FRED API (CPI, GDP, interest rates)
+• News sentiment via third-party (e.g., NewsAPI + NLP)
+• Analyst rating changes from financial data feed
+
+4.3 UI & API Expansion
+• Design REST API endpoints:
+– /valuate?ticker=\&start=\&end=\&method=intrinsic|peer|ml
+– /simulateMonteCarlo?ticker=\&nsim=
+• Front-end wireframes (React + D3/Plotly) for custom assumptions and chart display
+
+4.4 Scalability & Deployment
+• Containerize services (Docker)
+• CI/CD pipeline (GitHub Actions) for tests and nightly backtests
+• Cloud deployment considerations (AWS Lambda vs. EC2)
+• Authentication via API keys; secure secrets management
+
+\================================================================================
+5\. NON-FUNCTIONAL REQUIREMENTS
+-------------------------------
+
+• Logging: structured (JSON) logs for API calls, errors, metrics
+• Monitoring: alert on failed backtest jobs or data gaps
+• Security: encrypt API keys at rest; HTTPS for all endpoints
+• Documentation: auto-generated API docs (Swagger/OpenAPI)
+• Version control: Git flow with protected main branch
+
+\================================================================================
+6\. API ENDPOINTS (EXAMPLES)
+----------------------------
+
+GET /valuate
+Params: ticker, start, end, scenario=Bull|Base|Bear
+Returns: time series of price and fair values
+
+GET /backtest
+Params: ticker, start, end
+Returns: \[Date, Price, Bear, Base, Bull]
+
+POST /config
+Body: JSON with scenario parameters and distributions
+
+GET /peerval
+Params: ticker, start, end
+Returns: regression-based fair value series
+
+\================================================================================
+7\. NEXT STEPS
+--------------
+
+1. Finalize config schema (JSON/YAML) and default presets
+2. Implement Phase 1 prototype for one ticker and one quarter
+3. Write unit and integration tests for core DCF logic
+4. Review data-quality fallback rules and caching strategy
+5. Plan CI pipeline and initial Docker setup
+
+---
+
+End of specification. Please reach out with questions or clarifications.

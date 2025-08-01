@@ -4,24 +4,23 @@ import { FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
 
 const COLUMN_GROUPS = {
   All: [
-    "Ticker", "Option Type", "Strike", "Expiration",
-    "Underlying Scenario % Change", "Current Underlying",
-    "Simulated Underlying (+)", "Simulated Underlying (-)",
-    "Current Premium", "Simulated Premium (+)",
-    "Simulated Premium (+) % Change", "Simulated Premium (-)",
-    "Simulated Premium (-) % Change", "Days to Gain",
-    "Number of Contracts", "Average Cost per Contract",
-    "Equity Invested", "Simulated Equity (+)", "Simulated Equity (-)",
+    "Ticker", "Option Type", "Strike", 
+    "Expiration", "Current Premium", "Days to Gain", "Underlying Scenario % Change",
+    "Current Underlying", "Simulated Underlying (+)", "Simulated Underlying (-)",
+    "Simulated Premium (+)", "Simulated Premium (+) % Change", 
+    "Simulated Premium (-)", "Simulated Premium (-) % Change",
+    "Number of Contracts", "Average Cost per Contract", "Equity Invested",
+    "Simulated Equity (+)", "Simulated Equity (-)",
     "Bid", "Ask", "Volume", "Open Interest",
     "Implied Volatility", "Delta", "Theta", "Gamma", "Vega", "Rho"
   ],
   Simulation: [
-    "Underlying Scenario % Change", "Current Underlying",
-    "Simulated Underlying (+)", "Simulated Underlying (-)",
-    "Current Premium", "Simulated Premium (+)",
-    "Simulated Premium (+) % Change", "Simulated Premium (-)",
-    "Simulated Premium (-) % Change", "Days to Gain",
-    "Simulated Equity (+)", "Simulated Equity (-)"
+    "Days to Gain", "Underlying Scenario % Change", "Current Underlying",
+    "Simulated Underlying (+)", 
+    "Current Premium", 
+    "Simulated Premium (+)", "Simulated Premium (+) % Change", "Equity Invested", "Simulated Equity (+)", 
+    "Simulated Underlying (-)", "Simulated Premium (-)", "Simulated Premium (-) % Change",
+     "Simulated Equity (-)"
   ],
   "Position Details": [
     "Number of Contracts", "Average Cost per Contract",
@@ -43,14 +42,12 @@ function WatchlistTable({ items, selectedTickers }) {
   const [selectedGroup, setSelectedGroup] = useState("Simulation");
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  // --- Filter items by selectedTickers ---
   const visibleItems = useMemo(() => {
     return selectedTickers.length > 0
       ? items.filter(item => selectedTickers.includes(item.Ticker))
       : items;
   }, [items, selectedTickers]);
 
-  // --- Debug Log for First Row Keys ---
   if (visibleItems.length > 0) {
     const firstRowKeys = Object.keys(visibleItems[0]);
     const missingFromColumns = firstRowKeys.filter(k => !COLUMN_GROUPS.All.includes(k));
@@ -60,20 +57,17 @@ function WatchlistTable({ items, selectedTickers }) {
     console.log("🧪 Columns defined but missing in data:", missingFromData);
   }
 
-  // --- Track group changes ---
   const handleGroupChange = (group) => {
     console.log(`🔄 Column Group Changed to: ${group}`);
     setSelectedGroup(group);
   };
 
-  // --- Determine which columns to show based on selected group ---
   const visibleColumns = useMemo(() => {
     if (selectedGroup === "All") return COLUMN_GROUPS.All;
     const groupCols = COLUMN_GROUPS[selectedGroup] || [];
     return [...ESSENTIAL_COLUMNS, ...groupCols.filter(col => !ESSENTIAL_COLUMNS.includes(col))];
   }, [selectedGroup]);
 
-  // --- Sorting ---
   const sortedData = useMemo(() => {
     const sortable = [...visibleItems];
     if (sortConfig.key) {
@@ -97,7 +91,6 @@ function WatchlistTable({ items, selectedTickers }) {
     return sortable;
   }, [visibleItems, sortConfig]);
 
-  // --- Prepare data for CSV ---
   const csvFilteredData = useMemo(() => {
     return sortedData.map(row => {
       const filteredRow = {};
@@ -108,7 +101,6 @@ function WatchlistTable({ items, selectedTickers }) {
     });
   }, [sortedData, visibleColumns]);
 
-  // --- Extra Debug Logs ---
   useEffect(() => {
     if (sortedData.length > 0) {
       console.log("📋 First 3 rows of sortedData:", sortedData.slice(0, 3));
@@ -125,7 +117,6 @@ function WatchlistTable({ items, selectedTickers }) {
     }
   }, [visibleColumns, visibleItems]);
 
-  // --- Sorting handler ---
   const handleSort = (column) => {
     console.log(`🔀 Sorting by column: ${column}`);
     if (sortConfig.key === column) {
@@ -145,14 +136,12 @@ function WatchlistTable({ items, selectedTickers }) {
       : <FaSortDown className="inline ml-1" />;
   };
 
-  // --- Early return AFTER hooks ---
   if (!visibleItems || visibleItems.length === 0) {
     return <p className="text-muted">No watchlist items to display.</p>;
   }
 
   return (
     <div className="mt-10">
-      {/* Group Tabs + Export CSV */}
       <div className="flex flex-wrap justify-between items-center mb-4">
         <div className="flex flex-wrap gap-2">
           {Object.keys(COLUMN_GROUPS).map(group => (
@@ -187,7 +176,6 @@ function WatchlistTable({ items, selectedTickers }) {
         </div>
       </div>
 
-      {/* Table */}
       <div className="table-container">
         <table className="table">
           <thead className="table-header">
@@ -211,11 +199,25 @@ function WatchlistTable({ items, selectedTickers }) {
                 key={idx}
                 className={`border-t border-muted ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} table-row-hover`}
               >
-                {visibleColumns.map((col, i) => (
-                  <td key={i} className="table-cell">
-                    {Array.isArray(row[col]) ? row[col].join(', ') : String(row[col])}
-                  </td>
-                ))}
+                {visibleColumns.map((col, i) => {
+                  let value = row[col];
+
+                  if (["Current Premium", "Average Cost per Contract", "Bid", "Ask"].includes(col)) {
+                    value = Number(value).toFixed(2);
+                  }
+
+                  if (col === "Equity Invested") {
+                    const numContracts = Number(row["Number of Contracts"]);
+                    const avgCost = Number(row["Average Cost per Contract"]);
+                    value = (numContracts * avgCost * 100).toFixed(2);
+                  }
+
+                  return (
+                    <td key={i} className="table-cell">
+                      {Array.isArray(value) ? value.join(', ') : String(value)}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>

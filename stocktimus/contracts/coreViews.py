@@ -351,6 +351,7 @@ class SimulateGroupContractsAPIView(APIView):
             if not contracts_qs.exists():
                 return Response({'error': 'No contracts in this group.'}, status=400)
 
+            # Prepare contract data for simulation
             contracts_data = [
                 {
                     'ticker': c.ticker,
@@ -374,13 +375,38 @@ class SimulateGroupContractsAPIView(APIView):
             results = df.to_dict(orient="records")
             processed_results = []
 
-            for result, contract in zip(results, contracts_qs):
-                num_contracts = int(contract.number_of_contracts or 1)
-                cost_basis = contract.average_cost_per_contract or 0
+            # Create a quick lookup for contracts by key
+            contract_lookup = {
+                (
+                    str(c.ticker).upper(),
+                    str(c.option_type).lower(),
+                    str(float(c.strike)),
+                    str(c.expiration)
+                ): c for c in contracts_qs
+            }
+
+            for result in results:
+                # Try to match scenario row to a contract by ticker/type/strike/expiration
+                key = (
+                    str(result.get("Ticker") or result.get("ticker", "")).upper(),
+                    str(result.get("Option Type") or result.get("option_type", "")).lower(),
+                    str(float(result.get("Strike") or result.get("strike", 0))),
+                    str(result.get("Expiration") or result.get("expiration", ""))
+                )
+                contract = contract_lookup.get(key)
+
+                # Use contract fields if found, else default to row
+                if contract:
+                    num_contracts = int(contract.number_of_contracts or 1)
+                    cost_basis = contract.average_cost_per_contract or 0
+                else:
+                    num_contracts = int(result.get("Number of Contracts", 1))
+                    cost_basis = result.get("Average Cost per Contract", result.get("Current Premium", 0)) or 0
+
                 current_premium = result.get("Current Premium", result.get("current_premium", 0))
                 final_cost = cost_basis if cost_basis > 0 else current_premium
 
-                # Add computed values
+                # Add/overwrite computed fields for table
                 result["Average Cost per Contract"] = round(final_cost, 2)
                 result["Equity Invested"] = round(num_contracts * final_cost, 2)
                 result["Number of Contracts"] = num_contracts
@@ -396,11 +422,8 @@ class SimulateGroupContractsAPIView(APIView):
                 for col in required_columns:
                     result.setdefault(col, "NA" if col in ["Delta", "Theta", "Gamma", "Vega", "Rho"] else 0)
 
-                # Update contract record
-                contract.current_underlying_price = result.get("Current Underlying", contract.current_underlying_price)
-                contract.average_cost_per_contract = current_premium or contract.average_cost_per_contract
-                contract.last_refresh_date = timezone.now()
-                contract.save()
+                # (Optional) Update contract record if you want, but only once per contract
+                # (Could keep a set() of updated contract keys to avoid repeated .save())
 
                 processed_results.append(result)
 
@@ -409,7 +432,6 @@ class SimulateGroupContractsAPIView(APIView):
             import traceback
             traceback.print_exc()
             return Response({"error": str(e)}, status=500)
-
 
 
 # --- Bulk Simulation Endpoint ---

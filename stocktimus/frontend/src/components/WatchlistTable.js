@@ -6,11 +6,11 @@ const COLUMN_GROUPS = {
   All: [
     "Ticker", "Option Type", "Strike", 
     "Expiration", "Current Premium", "Days to Gain", "Underlying Scenario % Change",
-    "Current Underlying", "Simulated Underlying (+)", "Simulated Underlying (-)",
-    "Simulated Premium (+)", "Simulated Premium (+) % Change", 
-    "Simulated Premium (-)", "Simulated Premium (-) % Change",
-    "Number of Contracts", "Average Cost per Contract", "Equity Invested",
-    "Simulated Equity (+)", "Simulated Equity (-)",
+    "Current Underlying", "Simulated Underlying (+)", "Simulated Premium (+)", "Simulated Premium (+) % Change",
+    "Equity Invested", "Simulated Equity (+)",
+     "Simulated Underlying (-)", 
+    "Simulated Premium (-)", "Simulated Premium (-) % Change", "Simulated Equity (-)",
+    "Number of Contracts", "Average Cost per Contract",  
     "Bid", "Ask", "Volume", "Open Interest",
     "Implied Volatility", "Delta", "Theta", "Gamma", "Vega", "Rho"
   ],
@@ -35,7 +35,7 @@ const COLUMN_GROUPS = {
 };
 
 const ESSENTIAL_COLUMNS = [
-  "Ticker", "Option Type", "Strike", "Expiration", "Current Premium"
+  "Ticker", "Option Type", "Strike", "Expiration", "Current Premium", 'Number of Contracts', 
 ];
 
 function WatchlistTable({ items, selectedTickers }) {

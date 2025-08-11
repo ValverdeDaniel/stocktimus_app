@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { runScreenerBackend } from '../services/api';
+import {
+  runScreenerBackend,
+  getSavedParameters,
+  saveParameterSet,
+  deleteParameterSet
+} from '../services/api';
 import ScreenerScenarioForm from './ScreenerScenarioForm';
 import ScreenerSavedParams from './ScreenerSavedParams';
 import ScreenerResultsTable from './ScreenerResultsTable';
-import StandardLoader from './StandardLoader'; // ✅ Add this import
+import StandardLoader from './StandardLoader';
 
 function ScreenerResults() {
   const [paramSets, setParamSets] = useState([
@@ -26,11 +30,12 @@ function ScreenerResults() {
 
   useEffect(() => {
     fetchSavedParams();
+    // eslint-disable-next-line
   }, []);
 
   const fetchSavedParams = async () => {
     try {
-      const res = await axios.get('/api/saved-parameters/');
+      const res = await getSavedParameters();
       setSavedParams(res.data);
     } catch (err) {
       console.error('Error fetching saved parameters:', err);
@@ -102,7 +107,7 @@ function ScreenerResults() {
   };
 
   const deleteSavedScenario = async (id) => {
-    await axios.delete(`/api/saved-parameters/${id}/`);
+    await deleteParameterSet(id);
     fetchSavedParams();
   };
 
@@ -113,7 +118,7 @@ function ScreenerResults() {
         ? param.tickers.map((t) => t.trim().toUpperCase())
         : param.tickers.split(',').map((t) => t.trim().toUpperCase()),
     };
-    await axios.post('/api/saved-parameters/', payload);
+    await saveParameterSet(payload);
     fetchSavedParams();
   };
 

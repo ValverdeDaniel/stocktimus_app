@@ -94,18 +94,18 @@ export const getOptions = () => {
 export const getScreener = () => apiClient.get('/contracts/screener/');
 export const runScreenerBackend = (data) => {
   DEBUG_API && console.log('📡 [API] Running screener backend:', data);
-  return apiClient.post('/contracts/run-screener/', data);
+  return apiClient.post('/run-screener/', data); // ✅ Correct endpoint
 };
 
 // --- Saved Screener Parameters ---
-export const getSavedParameters = () => apiClient.get('/contracts/saved-parameters/');
+export const getSavedParameters = () => apiClient.get('/saved-parameters/'); // ✅ Correct endpoint
 export const saveParameterSet = (data) => {
   DEBUG_API && console.log('💾 [API] Saving parameter set:', data);
-  return apiClient.post('/contracts/saved-parameters/', data);
+  return apiClient.post('/saved-parameters/', data); // ✅ Correct endpoint
 };
 export const deleteParameterSet = (id) => {
   DEBUG_API && console.log(`🗑 [API] Deleting parameter set ID: ${id}`);
-  return apiClient.delete(`/contracts/saved-parameters/${id}/`);
+  return apiClient.delete(`/saved-parameters/${id}/`); // ✅ Correct endpoint
 };
 
 // --- Saved Contracts ---

@@ -45,6 +45,7 @@ C:\Users\Daniel2\OneDrive\Desktop\devprojects\shadowstocks\stocktimus\frontend>n
 
 
 pgadmin root password; 3*P*******
+user = postgres
 stocktimus database pw: 4*M*****
 
 

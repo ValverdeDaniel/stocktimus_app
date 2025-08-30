@@ -1,0 +1,389 @@
+# Create a detailed step-by-step migration guide as a .txt file
+content = """STOCKTIMUS MIGRATION GUIDE — GOOGLE CLOUD (CLOUD RUN + CLOUD SQL + FIREBASE HOSTING)
+====================================================================================
+
+Goal
+-----
+Migrate an existing Django (backend) + React (frontend) app to Google Cloud using:
+- Cloud Run for the API (containerized, autoscaling)
+- Cloud SQL for Postgres (managed database)
+- Firebase Hosting for the frontend (global CDN + HTTPS)
+- Secret Manager for secrets
+- Cloud Storage for static/media (optional but recommended)
+- GitHub Actions for CI/CD
+
+This plan is production-ready, easy to onboard/offboard developers, and supports custom domains.
+
+Placeholders (replace everywhere before running commands)
+---------------------------------------------------------
+PROJECT_ID        = your-gcp-project-id
+REGION            = us-central1 (or your preferred region)
+INSTANCE_NAME     = stocktimus-postgres
+DB_NAME           = stocktimus
+DB_USER           = appuser
+DB_PASSWORD       = strong-db-password
+DOMAIN            = yourdomain.com  (public site domain)
+API_DOMAIN        = api.yourdomain.com (if using a dedicated API domain)
+
+Prerequisites
+-------------
+- Google Cloud account with billing enabled
+- gcloud CLI installed and authenticated (gcloud init)
+- Firebase CLI installed (npm i -g firebase-tools)
+- Repo with:
+  - backend/ (Django project)
+  - frontend/ (React app)
+  - Dockerfile(s) or the ability to add them
+- GitHub repo for CI/CD (optional but recommended)
+
+====================================================================================
+PHASE 0 — INITIAL GCP SETUP
+====================================================================================
+1) Set project and enable required services:
+
+  gcloud init
+  gcloud config set project PROJECT_ID
+  gcloud config set run/region REGION
+  gcloud services enable run.googleapis.com sqladmin.googleapis.com secretmanager.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
+
+WHY: Cloud Run, Cloud SQL, Secret Manager, Artifact Registry, and Cloud Build are the managed pieces we’ll use.
+
+====================================================================================
+PHASE 1 — DATABASE: CLOUD SQL FOR POSTGRES
+====================================================================================
+A) Create a Cloud SQL Postgres instance (use Console if easier). Then create DB and user:
+
+  gcloud sql databases create DB_NAME --instance=INSTANCE_NAME
+  gcloud sql users create DB_USER --instance=INSTANCE_NAME --password "DB_PASSWORD"
+
+B) Connection plan
+   Use the built-in Cloud Run ↔ Cloud SQL connector (Unix domain socket under /cloudsql/PROJECT_ID:REGION:INSTANCE_NAME).
+
+WHY: Managed Postgres scales, handles backups/maintenance. The connector simplifies secure access.
+
+====================================================================================
+PHASE 2 — BACKEND SETTINGS (DJANGO)
+====================================================================================
+Files to update in backend/: requirements, settings.py
+
+A) Requirements (add as needed; pin with pip-tools if you use it):
+  gunicorn
+  psycopg2-binary
+  django-environ
+  django-storages
+  google-cloud-storage
+  dj-database-url
+
+B) settings.py (production-aware example)
+   Add environment handling and Cloud SQL socket + GCS storage:
+
+  import os
+  import environ
+  from pathlib import Path
+  import dj_database_url
+
+  BASE_DIR = Path(__file__).resolve().parent.parent
+  env = environ.Env(
+      DEBUG=(bool, False),
+      ALLOWED_HOSTS=(str, "localhost"),
+  )
+
+  DEBUG = env("DEBUG")
+  ALLOWED_HOSTS = [h.strip() for h in env("ALLOWED_HOSTS").split(",")]
+  SECRET_KEY = env("SECRET_KEY")
+
+  # Database via DATABASE_URL, e.g.:
+  # postgres://DB_USER:DB_PASSWORD@//cloudsql/PROJECT_ID:REGION:INSTANCE_NAME/DB_NAME
+  DATABASE_URL = env("DATABASE_URL")
+  DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=False)}
+
+  # Static and media on GCS (optional but recommended)
+  STATIC_URL = "/static/"
+  STATIC_ROOT = BASE_DIR / "staticfiles"
+  DEFAULT_FILE_STORAGE = "storages.backends.gcloud.GoogleCloudStorage"
+  GS_BUCKET_NAME = env("GS_BUCKET_NAME")
+  GS_DEFAULT_ACL = None
+
+  # Security (HTTPS)
+  SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", True)
+  SESSION_COOKIE_SECURE = True
+  CSRF_COOKIE_SECURE = True
+  SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+  # CSRF/CORS (adjust domains accordingly)
+  CSRF_TRUSTED_ORIGINS = [
+      f"https://{DOMAIN}",
+      "https://*.web.app",
+      "https://*.firebaseapp.com",
+  ]
+
+WHY: Keep secrets/env out of code, support Cloud SQL socket, and store static/media on GCS for durability and CDN compatibility.
+
+====================================================================================
+PHASE 3 — SECRETS IN SECRET MANAGER
+====================================================================================
+Create secrets; later we map them to Cloud Run as env vars.
+
+Examples of secret values:
+  DATABASE_URL=postgres://DB_USER:DB_PASSWORD@//cloudsql/PROJECT_ID:REGION:INSTANCE_NAME/DB_NAME
+  SECRET_KEY=generate_a_strong_random_key
+  GS_BUCKET_NAME=your-media-bucket-name
+  ALLOWED_HOSTS=DOMAIN,API_DOMAIN
+  DEBUG=False
+
+Commands to create secrets:
+  printf "DATABASE_URL=..." | gcloud secrets create django_settings --data-file=-
+  printf "SECRET_KEY=..."   | gcloud secrets create SECRET_KEY --data-file=-
+  printf "GS_BUCKET_NAME=..." | gcloud secrets create GS_BUCKET_NAME --data-file=-
+  printf "ALLOWED_HOSTS=..."  | gcloud secrets create ALLOWED_HOSTS --data-file=-
+  printf "DEBUG=False"        | gcloud secrets create DEBUG --data-file=-
+
+Grant the Cloud Run service account the role secretmanager.secretAccessor later (if needed).
+
+WHY: Centralized, auditable secret storage; no secrets in code or repo.
+
+====================================================================================
+PHASE 4 — CONTAINERIZE & DEPLOY BACKEND TO CLOUD RUN
+====================================================================================
+A) Production Dockerfile (backend/Dockerfile.prod)
+
+  FROM python:3.11-slim-bookworm
+  WORKDIR /app
+  ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+
+  RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev \\
+    && rm -rf /var/lib/apt/lists/*
+
+  COPY requirements.txt .
+  RUN pip install --no-cache-dir -r requirements.txt
+
+  COPY . .
+  RUN python manage.py collectstatic --noinput
+
+  CMD gunicorn backend.wsgi:application --bind 0.0.0.0:8000 --workers 3
+
+B) Build and push image to Artifact Registry, then deploy to Cloud Run:
+
+  gcloud artifacts repositories create stocktimus --repository-format=docker --location=REGION
+  gcloud builds submit --tag REGION-docker.pkg.dev/PROJECT_ID/stocktimus/backend:$(date +%Y%m%d-%H%M) backend
+
+  gcloud run deploy stocktimus-backend \\
+    --image REGION-docker.pkg.dev/PROJECT_ID/stocktimus/backend:$(date +%Y%m%d-%H%M) \\
+    --allow-unauthenticated \\
+    --region REGION \\
+    --add-cloudsql-instances PROJECT_ID:REGION:INSTANCE_NAME \\
+    --set-secrets SECRET_KEY=SECRET_KEY:latest,GS_BUCKET_NAME=GS_BUCKET_NAME:latest,DATABASE_URL=django_settings:latest,ALLOWED_HOSTS=ALLOWED_HOSTS:latest,DEBUG=DEBUG:latest
+
+WHY: Cloud Run hosts your container behind HTTPS with autoscaling. The Cloud SQL connector mounts /cloudsql/… so DATABASE_URL works.
+
+====================================================================================
+PHASE 5 — RUN DATABASE MIGRATIONS (CLOUD RUN JOBS)
+====================================================================================
+Create/update a Cloud Run Job that runs Django migrations using the same image and secrets:
+
+  gcloud run jobs describe migrate --region REGION >/dev/null 2>&1 \\
+    && gcloud run jobs update migrate \\
+          --image REGION-docker.pkg.dev/PROJECT_ID/stocktimus/backend:latest \\
+          --region REGION \\
+          --set-secrets SECRET_KEY=SECRET_KEY:latest,GS_BUCKET_NAME=GS_BUCKET_NAME:latest,DATABASE_URL=django_settings:latest \\
+          --command "python" --args "manage.py","migrate","--noinput" \\
+    || gcloud run jobs create migrate \\
+          --image REGION-docker.pkg.dev/PROJECT_ID/stocktimus/backend:latest \\
+          --tasks 1 --max-retries 0 --region REGION \\
+          --set-secrets SECRET_KEY=SECRET_KEY:latest,GS_BUCKET_NAME=GS_BUCKET_NAME:latest,DATABASE_URL=django_settings:latest \\
+          --command "python" --args "manage.py","migrate","--noinput"
+
+Run the job:
+  gcloud run jobs run migrate --region REGION
+
+WHY: Safe, repeatable migrations on each deploy.
+
+====================================================================================
+PHASE 6 — FRONTEND TO FIREBASE HOSTING (CDN + HTTPS)
+====================================================================================
+From frontend/:
+
+  npm ci
+  npm run build
+
+One-time Firebase setup:
+  npm i -g firebase-tools
+  firebase login
+  firebase init hosting
+    - Public directory: build
+    - Configure as a SPA: yes (rewrites to index.html)
+
+Deploy:
+  firebase deploy --only hosting --project PROJECT_ID
+
+Optional: Proxy /api/** calls to Cloud Run using firebase.json rewrites:
+  {
+    "hosting": {
+      "public": "build",
+      "ignore": ["**/.*", "**/node_modules/**"],
+      "rewrites": [
+        {
+          "source": "/api/**",
+          "run": { "serviceId": "stocktimus-backend", "region": "REGION" }
+        },
+        { "source": "**", "destination": "/index.html" }
+      ]
+    }
+  }
+
+WHY: Firebase Hosting provides global CDN and SSL. Rewrites avoid CORS by routing API calls through Hosting to Cloud Run.
+
+====================================================================================
+PHASE 7 — CUSTOM DOMAINS + HTTPS
+====================================================================================
+Option A (simple): Point DOMAIN to Firebase Hosting (DNS verification in Firebase). Use rewrite /api/** to Cloud Run.
+
+Option B: Map API_DOMAIN directly to Cloud Run (Cloud Run custom domain mapping). Keep site on Firebase.
+
+WHY: Both yield automatic HTTPS. Choose A for one domain; choose B if you prefer separate domains for app and API.
+
+====================================================================================
+PHASE 8 — CI/CD WITH GITHUB ACTIONS
+====================================================================================
+Two workflows: backend → Cloud Run, frontend → Firebase Hosting.
+
+A) Backend (/.github/workflows/deploy-backend.yml; minimal example)
+  name: Deploy Backend to Cloud Run
+  on:
+    push:
+      branches: [ main ]
+      paths: [ "backend/**", ".github/workflows/deploy-backend.yml" ]
+  jobs:
+    deploy:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - uses: google-github-actions/auth@v2
+          with:
+            credentials_json: ${{ secrets.GCP_SA_KEY }}
+        - uses: google-github-actions/setup-gcloud@v2
+        - name: Build & Push
+          run: |
+            gcloud builds submit \
+              --tag REGION-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/stocktimus/backend:${{ github.sha }} backend
+        - name: Deploy
+          run: |
+            gcloud run deploy stocktimus-backend \
+              --image REGION-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/stocktimus/backend:${{ github.sha }} \
+              --allow-unauthenticated \
+              --region REGION \
+              --add-cloudsql-instances ${{ secrets.CLOUDSQL_CONN_NAME }} \
+              --set-secrets SECRET_KEY=SECRET_KEY:latest,GS_BUCKET_NAME=GS_BUCKET_NAME:latest,DATABASE_URL=django_settings:latest,ALLOWED_HOSTS=ALLOWED_HOSTS:latest,DEBUG=DEBUG:latest
+        - name: Migrate
+          run: |
+            gcloud run jobs describe migrate --region REGION >/dev/null 2>&1 \
+              && gcloud run jobs update migrate \
+                    --image REGION-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/stocktimus/backend:${{ github.sha }} \
+                    --region REGION \
+                    --set-secrets SECRET_KEY=SECRET_KEY:latest,GS_BUCKET_NAME=GS_BUCKET_NAME:latest,DATABASE_URL=django_settings:latest \
+                    --command "python" --args "manage.py","migrate","--noinput" \
+              || gcloud run jobs create migrate \
+                    --image REGION-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/stocktimus/backend:${{ github.sha }} \
+                    --tasks 1 --max-retries 0 --region REGION \
+                    --set-secrets SECRET_KEY=SECRET_KEY:latest,GS_BUCKET_NAME=GS_BUCKET_NAME:latest,DATABASE_URL=django_settings:latest \
+                    --command "python" --args "manage.py","migrate","--noinput"
+            gcloud run jobs run migrate --region REGION
+
+B) Frontend (/.github/workflows/deploy-frontend.yml)
+  name: Deploy Frontend to Firebase
+  on:
+    push:
+      branches: [ main ]
+      paths: [ "frontend/**", ".github/workflows/deploy-frontend.yml" ]
+  jobs:
+    deploy:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v4
+        - uses: actions/setup-node@v4
+          with: { node-version: "18" }
+        - run: |
+            cd frontend
+            npm ci
+            npm run build
+        - run: npm i -g firebase-tools
+        - name: Deploy
+          env:
+            FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          run: |
+            cd frontend
+            firebase deploy --only hosting --project ${{ secrets.GCP_PROJECT }}
+
+Required GitHub secrets:
+  - GCP_SA_KEY (JSON for a limited-permission service account) or use Workload Identity Federation later
+  - GCP_PROJECT (PROJECT_ID)
+  - CLOUDSQL_CONN_NAME (PROJECT_ID:REGION:INSTANCE_NAME)
+  - FIREBASE_TOKEN (from firebase login:ci)
+
+WHY: Push to main auto-builds and deploys both services with migrations, keeping main always releasable.
+
+====================================================================================
+PHASE 9 — OBSERVABILITY & OPS GUARDRAILS
+====================================================================================
+- Logs/metrics: Cloud Run and Cloud SQL logs are in Cloud Logging/Monitoring (Console).
+- Error tracking: Add Sentry (Django + React) when possible.
+- Scaling/cost: Keep Cloud Run min instances = 0 to start; adjust concurrency if latency requires.
+- Backups: Enable automated backups on Cloud SQL (and point-in-time recovery if needed).
+- Security: Limit the Cloud Run service account to only what it needs (Cloud SQL Client, Secret Accessor). Rotate keys if compromised.
+
+====================================================================================
+PHASE 10 — HIRING & OFFBOARDING WORKFLOW
+====================================================================================
+Onboarding:
+  - Give devs GitHub Write (no GCP access needed).
+  - Local dev: docker compose up (they can still use SQLite locally if preferred).
+  - No sharing of production secrets; everything lives in Secret Manager.
+
+Offboarding:
+  - Remove from GitHub team.
+  - No cloud keys to rotate unless a shared key was used; prefer per-service account and least privilege.
+  - If you ever granted per-dev DB access to staging, drop their DB user.
+
+====================================================================================
+APPENDIX A — ENV VARS SUMMARY
+====================================================================================
+Required (examples):
+  DEBUG=False
+  SECRET_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  ALLOWED_HOSTS=DOMAIN,API_DOMAIN
+  DATABASE_URL=postgres://DB_USER:DB_PASSWORD@//cloudsql/PROJECT_ID:REGION:INSTANCE_NAME/DB_NAME
+  GS_BUCKET_NAME=your-bucket-name (if using GCS for media)
+
+Frontend build-time (optional):
+  REACT_APP_API_BASE=https://API_DOMAIN or https://DOMAIN/api
+
+====================================================================================
+APPENDIX B — FILES TO ADD/EDIT
+====================================================================================
+backend/Dockerfile.prod
+backend/requirements.in (optional) and requirements.txt
+backend/settings.py (env-based config as above)
+frontend/firebase.json (hosting + rewrites)
+.github/workflows/deploy-backend.yml
+.github/workflows/deploy-frontend.yml
+
+Optional:
+.pre-commit-config.yaml
+docs/onboarding.md
+docs/offboarding.md
+
+====================================================================================
+APPENDIX C — ROLLBACK / RECOVERY
+====================================================================================
+- To roll back backend: redeploy an older image tag to Cloud Run.
+- To restore DB: use Cloud SQL backups (Console) or pg_dump/pg_restore if you keep your own dumps.
+- Always run migrations via the job; if a migration fails, fix code and rerun job before re-exposing traffic if needed.
+
+END OF DOCUMENT
+"""
+
+path = "/mnt/data/migration_to_gcp_cloudrun_cloudsql_firebase.txt"
+with open(path, "w", encoding="utf-8") as f:
+    f.write(content)
+
+path

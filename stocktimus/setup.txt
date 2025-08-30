@@ -11,10 +11,11 @@
    cd C:\Users\Daniel2\OneDrive\Desktop\devprojects\shadowstocks\stocktimus
 
 3. Activate the virtual environment:
-   stocktimus\Scripts\activate
+   (old) socktimus\Scripts\activate
+   (new) conda activate base2
 
 ✅ You should now see:
-   (stocktimus) C:\Users\Daniel2\OneDrive\Desktop\devprojects\shadowstocks\stocktimus>
+   (base2) C:\Users\Daniel2\OneDrive\Desktop\devprojects\shadowstocks\stocktimus>
 
 
 

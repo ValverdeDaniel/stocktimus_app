@@ -1,4 +1,6 @@
 # shadowstocks
+testnew
+
 original readme:
 code that is active can be found in the Version 1 file
 in there there is a readme.txt file that explains some of the output and inputs of the functions creating the tables

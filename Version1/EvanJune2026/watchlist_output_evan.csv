@@ -1,5 +1,0 @@
-Ticker,Option Type,Strike,Expiration,Implied Volatility,Number of Contracts,Average Cost per Contract,Average Cost ($),Current Premium,Your Equity ($),Total % Change,Days to Gain,Scenario %,Stock Price Up,Stock Price Down,Premium Up,Premium Down,% Gain from Current (Up),% Gain from Current (Down)
-NVDA,call,5,2027-01-15,144.54,2,107.64,21528.0,139.95,27990.0,30.02,365,±5%,151.98,137.5,147.13,132.66,5.13,-5.21
-NVDA,call,5,2027-01-15,144.54,2,107.64,21528.0,139.95,27990.0,30.02,365,±10%,159.22,130.27,154.37,125.42,10.3,-10.38
-NVDA,call,5,2027-01-15,144.54,2,107.64,21528.0,139.95,27990.0,30.02,365,±20%,173.69,115.79,168.84,110.95,20.64,-20.72
-NVDA,call,5,2027-01-15,144.54,2,107.64,21528.0,139.95,27990.0,30.02,365,±50%,217.11,72.37,212.26,67.56,51.67,-51.72

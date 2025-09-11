@@ -1,0 +1,54 @@
+# Filename: docker-compose.yml
+
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Database Service
+  db:
+    image: postgres:15
+    container_name: stocktimus_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    # Environment variables for the database
+    environment:
+      - POSTGRES_DB=stocktimus_local_db
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=password123
+    ports:
+      # Exposes the database on port 5432 so you can connect with a DB tool if needed
+      - "5432:5432"
+
+  # 2. Django Backend Service
+  backend:
+    build: ./stocktimus # Tells Docker to look for a Dockerfile in the 'stocktimus' folder
+    container_name: stocktimus_backend
+    # Command to run the Django development server
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      # Mounts your local code into the container for instant changes
+      - ./stocktimus:/app
+    ports:
+      - "8000:8000"
+    environment:
+      # Tells Django how to connect to the database
+      - DATABASE_URL=postgres://admin:password123@db:5432/stocktimus_local_db
+      - DJANGO_DEBUG=True
+    # Ensures the database starts before the backend
+    depends_on:
+      - db
+
+  # 3. Node.js Frontend Service (Placeholder)
+  frontend:
+    build: ./frontend # Assumes you will have a 'frontend' folder with a Dockerfile
+    container_name: stocktimus_frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Prevents local node_modules from overwriting container's
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  # This creates a persistent volume for your database data
+  postgres_data:

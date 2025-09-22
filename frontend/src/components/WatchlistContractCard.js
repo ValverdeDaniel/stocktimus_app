@@ -129,13 +129,13 @@ export default function WatchlistContractCard({
         {/* Premium */}
         <div>
           💵 Premium: {formatCurrency(initial_premium)} → {formatCurrency(current_premium)}{' '}
-          {premium_percent_change !== 0 ? `${premium_percent_change >= 0 ? '↑' : '↓'} ${Math.abs(premium_percent_change).toFixed(1)}%` : '--'}
+          {premium_percent_change && premium_percent_change !== 0 ? `${premium_percent_change >= 0 ? '↑' : '↓'} ${Math.abs(premium_percent_change).toFixed(1)}%` : '--'}
         </div>
 
         {/* Underlying */}
         <div>
           📈 Underlying: {formatCurrency(underlying_price_at_add)} → {formatCurrency(current_underlying_price)}{' '}
-          {underlying_percent_change !== 0 ? `${underlying_percent_change >= 0 ? '↑' : '↓'} ${Math.abs(underlying_percent_change).toFixed(1)}%` : '--'}
+          {underlying_percent_change && underlying_percent_change !== 0 ? `${underlying_percent_change >= 0 ? '↑' : '↓'} ${Math.abs(underlying_percent_change).toFixed(1)}%` : '--'}
         </div>
 
         {/* Contracts */}
@@ -144,7 +144,7 @@ export default function WatchlistContractCard({
         {/* Equity */}
         <div>
            Equity: {formatCurrency(initial_equity)} → {formatCurrency(current_equity)}{' '}
-          {equity_percent_change !== 0 ? `${equity_percent_change >= 0 ? '↑' : '↓'} ${Math.abs(equity_percent_change).toFixed(1)}%` : '--'}
+          {equity_percent_change && equity_percent_change !== 0 ? `${equity_percent_change >= 0 ? '↑' : '↓'} ${Math.abs(equity_percent_change).toFixed(1)}%` : '--'}
         </div>
 
         {/* Days */}

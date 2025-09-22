@@ -101,12 +101,12 @@ class SavedContract(models.Model):
         return 0
 
     def premium_percent_change(self):
-        if self.initial_premium and self.initial_premium != 0:
+        if self.initial_premium and self.initial_premium != 0 and self.current_premium is not None:
             return ((self.current_premium - self.initial_premium) / self.initial_premium) * 100
         return 0
 
     def equity_percent_change(self):
-        if self.initial_equity and self.initial_equity != 0:
+        if self.initial_equity and self.initial_equity != 0 and self.current_equity is not None:
             return ((self.current_equity - self.initial_equity) / self.initial_equity) * 100
         return 0
 

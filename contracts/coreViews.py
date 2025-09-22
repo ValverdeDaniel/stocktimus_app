@@ -240,14 +240,19 @@ class SavedContractListCreateAPIView(generics.ListCreateAPIView):
                 raise ValueError("Watchlist simulator returned empty result")
 
             result = result_df.iloc[0]
-            premium = result.get("current_premium")
-            if premium is None or math.isnan(premium):
+
+            # Extract values using the correct field names from simulation
+            premium = result.get("Current Premium", 0.0)
+            if premium is None or (isinstance(premium, float) and math.isnan(premium)):
                 premium = 0.0
 
-            avg_cost = avg_cost_input if avg_cost_input is not None else premium
-            underlying_price = result.get("current_underlying_price", 0.0)
+            underlying_price = result.get("Current Underlying", 0.0)
+            if underlying_price is None or (isinstance(underlying_price, float) and math.isnan(underlying_price)):
+                underlying_price = 0.0
 
+            avg_cost = avg_cost_input if avg_cost_input is not None else premium
             equity = number_of_contracts * avg_cost
+
 
             serializer.save(
                 user=self.request.user,  # ✅ Save user
@@ -301,13 +306,22 @@ def refresh_contract_data(request, contract_id):
         result_df = whole_watchlist(simulation_input)
         if not result_df.empty:
             result = result_df.iloc[0]
-            current_premium = result.get("current_premium", result.get("Current Premium", 0))
-            current_underlying = result.get("current_underlying_price", result.get("Current Underlying", 0))
+
+            # Extract current values using correct field names
+            current_premium = result.get("Current Premium", 0)
+            current_underlying = result.get("Current Underlying", 0)
+
 
             # Update current values
-            contract.current_premium = current_premium if current_premium and not math.isnan(current_premium) else contract.current_premium
-            contract.current_underlying_price = current_underlying if current_underlying and not math.isnan(current_underlying) else contract.current_underlying_price
-            contract.current_equity = contract.number_of_contracts * contract.current_premium if contract.current_premium else contract.current_equity
+            if current_premium and not math.isnan(current_premium):
+                contract.current_premium = current_premium
+            if current_underlying and not math.isnan(current_underlying):
+                contract.current_underlying_price = current_underlying
+
+            # Recalculate current equity
+            if contract.current_premium:
+                contract.current_equity = contract.number_of_contracts * contract.current_premium
+
             contract.last_refresh_date = timezone.now()
             contract.save()
 
@@ -428,14 +442,19 @@ class SimulateGroupContractsAPIView(APIView):
                     cost_basis = contract.average_cost_per_contract or 0
 
                     # Update contract's current values from simulation
-                    current_premium = result.get("Current Premium", result.get("current_premium", 0))
-                    current_underlying = result.get("Current Underlying", result.get("current_underlying_price", 0))
+                    current_premium = result.get("Current Premium", 0)
+                    current_underlying = result.get("Current Underlying", 0)
+
 
                     if current_premium and not math.isnan(current_premium):
                         contract.current_premium = current_premium
                     if current_underlying and not math.isnan(current_underlying):
                         contract.current_underlying_price = current_underlying
-                    contract.current_equity = num_contracts * (contract.current_premium or contract.average_cost_per_contract or 0)
+
+                    # Recalculate current equity
+                    if contract.current_premium:
+                        contract.current_equity = num_contracts * contract.current_premium
+
                     contract.save()
 
                     # Add percent change calculations to result

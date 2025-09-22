@@ -11,31 +11,46 @@ services:
       - postgres_data:/var/lib/postgresql/data/
     # Environment variables for the database
     environment:
-      - POSTGRES_DB=stocktimus_local_db
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=password123
+      - POSTGRES_DB=options_db
+      - POSTGRES_USER=options_user
+      - POSTGRES_PASSWORD=secret123
     ports:
       # Exposes the database on port 5432 so you can connect with a DB tool if needed
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U options_user -d options_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 
   # 2. Django Backend Service
   backend:
-    build: ./stocktimus # Tells Docker to look for a Dockerfile in the 'stocktimus' folder
+    build: . # Tells Docker to look for a Dockerfile in the 'stocktimus' folder
     container_name: stocktimus_backend
     # Command to run the Django development server
-    command: python manage.py runserver 0.0.0.0:8000
+    command: >
+        sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
     volumes:
       # Mounts your local code into the container for instant changes
-      - ./stocktimus:/app
+      - .:/app
     ports:
       - "8000:8000"
     environment:
       # Tells Django how to connect to the database
-      - DATABASE_URL=postgres://admin:password123@db:5432/stocktimus_local_db
+      - DB_NAME=options_db
+      - DB_USER=options_user
+      - DB_PASSWORD=secret123
+      - DB_HOST=db
+      - DB_PORT=5432
       - DJANGO_DEBUG=True
     # Ensures the database starts before the backend
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
 
   # 3. Node.js Frontend Service (Placeholder)
   frontend:

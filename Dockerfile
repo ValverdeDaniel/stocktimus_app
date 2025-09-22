@@ -1,7 +1,5 @@
-# Filename: stocktimus/Dockerfile
-
 # Use an official lightweight Python image
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Set environment variables to prevent Python from writing .pyc files
 ENV PYTHONDONTWRITEBYTECODE=1

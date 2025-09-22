@@ -5,7 +5,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = "django-insecure-u2p&t2+k+4%4ur1os_=sq)3w-ntb%=4)^^pu6n2^-(!p4__)1l"
 DEBUG = True
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend', 'frontend', '0.0.0.0', '*']
 
 # --- Application definition ---
 INSTALLED_APPS = [

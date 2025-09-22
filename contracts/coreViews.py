@@ -247,6 +247,8 @@ class SavedContractListCreateAPIView(generics.ListCreateAPIView):
             avg_cost = avg_cost_input if avg_cost_input is not None else premium
             underlying_price = result.get("current_underlying_price", 0.0)
 
+            equity = number_of_contracts * avg_cost
+
             serializer.save(
                 user=self.request.user,  # ✅ Save user
                 initial_days_to_gain=initial_days_to_gain,
@@ -254,7 +256,11 @@ class SavedContractListCreateAPIView(generics.ListCreateAPIView):
                 average_cost_per_contract=avg_cost,
                 initial_cost_per_contract=avg_cost,
                 underlying_price_at_add=underlying_price,
-                current_underlying_price=underlying_price
+                current_underlying_price=underlying_price,
+                initial_premium=premium,
+                current_premium=premium,
+                initial_equity=equity,
+                current_equity=equity
             )
         except Exception as e:
             raise serializers.ValidationError(f"Simulator failed: {str(e)}")
@@ -280,10 +286,31 @@ def reset_days_to_gain(request, contract_id):
 def refresh_contract_data(request, contract_id):
     try:
         contract = SavedContract.objects.get(id=contract_id, user=request.user)
-        simulated_premium = 4.25
-        contract.average_cost_per_contract = simulated_premium
-        contract.last_refresh_date = timezone.now()
-        contract.save()
+
+        # Run simulation to get current values
+        simulation_input = [{
+            "ticker": contract.ticker,
+            "option_type": contract.option_type,
+            "strike": contract.strike,
+            "expiration": contract.expiration.isoformat(),
+            "days_to_gain": contract.dynamic_days_to_gain(),
+            "number_of_contracts": contract.number_of_contracts,
+            "average_cost_per_contract": contract.average_cost_per_contract,
+        }]
+
+        result_df = whole_watchlist(simulation_input)
+        if not result_df.empty:
+            result = result_df.iloc[0]
+            current_premium = result.get("current_premium", result.get("Current Premium", 0))
+            current_underlying = result.get("current_underlying_price", result.get("Current Underlying", 0))
+
+            # Update current values
+            contract.current_premium = current_premium if current_premium and not math.isnan(current_premium) else contract.current_premium
+            contract.current_underlying_price = current_underlying if current_underlying and not math.isnan(current_underlying) else contract.current_underlying_price
+            contract.current_equity = contract.number_of_contracts * contract.current_premium if contract.current_premium else contract.current_equity
+            contract.last_refresh_date = timezone.now()
+            contract.save()
+
         return Response({"message": "Contract refreshed successfully."})
     except SavedContract.DoesNotExist:
         return Response({"error": "Contract not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -399,11 +426,28 @@ class SimulateGroupContractsAPIView(APIView):
                 if contract:
                     num_contracts = int(contract.number_of_contracts or 1)
                     cost_basis = contract.average_cost_per_contract or 0
+
+                    # Update contract's current values from simulation
+                    current_premium = result.get("Current Premium", result.get("current_premium", 0))
+                    current_underlying = result.get("Current Underlying", result.get("current_underlying_price", 0))
+
+                    if current_premium and not math.isnan(current_premium):
+                        contract.current_premium = current_premium
+                    if current_underlying and not math.isnan(current_underlying):
+                        contract.current_underlying_price = current_underlying
+                    contract.current_equity = num_contracts * (contract.current_premium or contract.average_cost_per_contract or 0)
+                    contract.save()
+
+                    # Add percent change calculations to result
+                    result["Underlying % Change"] = round(contract.underlying_percent_change(), 2)
+                    result["Premium % Change"] = round(contract.premium_percent_change(), 2)
+                    result["Equity % Change"] = round(contract.equity_percent_change(), 2)
+                    result["Days Remaining"] = contract.dynamic_days_to_gain()
                 else:
                     num_contracts = int(result.get("Number of Contracts", 1))
                     cost_basis = result.get("Average Cost per Contract", result.get("Current Premium", 0)) or 0
+                    current_premium = result.get("Current Premium", result.get("current_premium", 0))
 
-                current_premium = result.get("Current Premium", result.get("current_premium", 0))
                 final_cost = cost_basis if cost_basis > 0 else current_premium
 
                 # Add/overwrite computed fields for table

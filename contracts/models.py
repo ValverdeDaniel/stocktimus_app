@@ -76,6 +76,12 @@ class SavedContract(models.Model):
     underlying_price_at_add = models.FloatField(null=True, blank=True)
     current_underlying_price = models.FloatField(null=True, blank=True)
 
+    # Add fields for storing initial values
+    initial_premium = models.FloatField(null=True, blank=True)
+    current_premium = models.FloatField(null=True, blank=True)
+    initial_equity = models.FloatField(null=True, blank=True)
+    current_equity = models.FloatField(null=True, blank=True)
+
     # Optional enhancements
     latest_simulation_result = models.JSONField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
@@ -88,6 +94,21 @@ class SavedContract(models.Model):
     def dynamic_days_to_gain(self):
         elapsed = (timezone.now().date() - self.last_reset_date.date()).days
         return max(0, self.initial_days_to_gain - elapsed) if self.initial_days_to_gain else 0
+
+    def underlying_percent_change(self):
+        if self.underlying_price_at_add and self.underlying_price_at_add != 0:
+            return ((self.current_underlying_price - self.underlying_price_at_add) / self.underlying_price_at_add) * 100
+        return 0
+
+    def premium_percent_change(self):
+        if self.initial_premium and self.initial_premium != 0:
+            return ((self.current_premium - self.initial_premium) / self.initial_premium) * 100
+        return 0
+
+    def equity_percent_change(self):
+        if self.initial_equity and self.initial_equity != 0:
+            return ((self.current_equity - self.initial_equity) / self.initial_equity) * 100
+        return 0
 
     def __str__(self):
         return f"{self.label or self.ticker} ({self.option_type.upper()})"

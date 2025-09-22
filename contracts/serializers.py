@@ -40,6 +40,9 @@ class SavedScreenerParameterSerializer(serializers.ModelSerializer):
 class SavedContractSerializer(serializers.ModelSerializer):
     # This field computes a value from the model method
     dynamic_days_to_gain = serializers.SerializerMethodField()
+    underlying_percent_change = serializers.SerializerMethodField()
+    premium_percent_change = serializers.SerializerMethodField()
+    equity_percent_change = serializers.SerializerMethodField()
 
     class Meta:
         model = SavedContract
@@ -48,15 +51,20 @@ class SavedContractSerializer(serializers.ModelSerializer):
             'expiration', 'initial_days_to_gain', 'number_of_contracts',
             'average_cost_per_contract', 'initial_cost_per_contract',
             'underlying_price_at_add', 'current_underlying_price',
+            'initial_premium', 'current_premium',
+            'initial_equity', 'current_equity',
             'first_added_to_group_date', 'last_reset_date', 'last_refresh_date',
             'created_at', 'dynamic_days_to_gain',
+            'underlying_percent_change', 'premium_percent_change', 'equity_percent_change'
         ]
         # ✅ UPDATED: Consolidated all read_only_fields and extra_kwargs
         read_only_fields = [
             'user', 'initial_cost_per_contract', 'underlying_price_at_add',
-            'current_underlying_price', 'first_added_to_group_date',
+            'current_underlying_price', 'initial_premium', 'current_premium',
+            'initial_equity', 'current_equity', 'first_added_to_group_date',
             'last_reset_date', 'last_refresh_date', 'created_at',
-            'dynamic_days_to_gain',
+            'dynamic_days_to_gain', 'underlying_percent_change',
+            'premium_percent_change', 'equity_percent_change'
         ]
         # Ensures optional fields sent from the frontend aren't strictly required
         extra_kwargs = {
@@ -67,6 +75,15 @@ class SavedContractSerializer(serializers.ModelSerializer):
 
     def get_dynamic_days_to_gain(self, obj):
         return obj.dynamic_days_to_gain()
+
+    def get_underlying_percent_change(self, obj):
+        return obj.underlying_percent_change()
+
+    def get_premium_percent_change(self, obj):
+        return obj.premium_percent_change()
+
+    def get_equity_percent_change(self, obj):
+        return obj.equity_percent_change()
 
     # ✅ ADDED: This new method is the key to fixing the validation error.
     def to_internal_value(self, data):

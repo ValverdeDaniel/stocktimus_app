@@ -38,10 +38,14 @@ export default function WatchlistContractCard({
     current_underlying_price = 0,
     dynamic_days_to_gain,
     initial_days_to_gain,
+    initial_premium = 0,
+    current_premium = 0,
+    initial_equity = 0,
+    current_equity = 0,
+    underlying_percent_change = 0,
+    premium_percent_change = 0,
+    equity_percent_change = 0,
   } = contract;
-
-  const startingEquity = number_of_contracts * (initial_cost_per_contract ?? 0);
-  const currentEquity = number_of_contracts * (average_cost_per_contract ?? 0);
 
   // --- Initial Render Debug ---
   useEffect(() => {
@@ -124,14 +128,14 @@ export default function WatchlistContractCard({
 
         {/* Premium */}
         <div>
-          💵 Premium: {formatCurrency(initial_cost_per_contract)} → {formatCurrency(average_cost_per_contract)}{' '}
-          {formatPercent(initial_cost_per_contract, average_cost_per_contract)}
+          💵 Premium: {formatCurrency(initial_premium)} → {formatCurrency(current_premium)}{' '}
+          {premium_percent_change !== 0 ? `${premium_percent_change >= 0 ? '↑' : '↓'} ${Math.abs(premium_percent_change).toFixed(1)}%` : '--'}
         </div>
 
         {/* Underlying */}
         <div>
           📈 Underlying: {formatCurrency(underlying_price_at_add)} → {formatCurrency(current_underlying_price)}{' '}
-          {formatPercent(underlying_price_at_add, current_underlying_price)}
+          {underlying_percent_change !== 0 ? `${underlying_percent_change >= 0 ? '↑' : '↓'} ${Math.abs(underlying_percent_change).toFixed(1)}%` : '--'}
         </div>
 
         {/* Contracts */}
@@ -139,8 +143,8 @@ export default function WatchlistContractCard({
 
         {/* Equity */}
         <div>
-           Equity: {formatCurrency(startingEquity)} → {formatCurrency(currentEquity)}{' '}
-          {formatPercent(startingEquity, currentEquity)}
+           Equity: {formatCurrency(initial_equity)} → {formatCurrency(current_equity)}{' '}
+          {equity_percent_change !== 0 ? `${equity_percent_change >= 0 ? '↑' : '↓'} ${Math.abs(equity_percent_change).toFixed(1)}%` : '--'}
         </div>
 
         {/* Days */}

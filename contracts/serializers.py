@@ -7,6 +7,7 @@ from .models import (
     SavedContract,
     WatchlistGroup,
     Ticker,
+    RefreshJob,
 )
 
 
@@ -127,3 +128,16 @@ class TickerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ticker
         fields = ['code', 'name']
+
+
+class RefreshJobSerializer(serializers.ModelSerializer):
+    progress_percentage = serializers.ReadOnlyField()
+
+    class Meta:
+        model = RefreshJob
+        fields = [
+            'id', 'job_type', 'group', 'status', 'total_contracts',
+            'processed_contracts', 'successful_contracts', 'failed_contracts',
+            'error_message', 'created_at', 'updated_at', 'progress_percentage'
+        ]
+        read_only_fields = ['user']

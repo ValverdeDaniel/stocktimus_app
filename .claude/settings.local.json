@@ -3,7 +3,8 @@
     "allow": [
       "Bash(docker-compose exec:*)",
       "Bash(curl:*)",
-      "Bash(docker-compose restart:*)"
+      "Bash(docker-compose restart:*)",
+      "Bash(docker-compose logs:*)"
     ],
     "deny": [],
     "ask": []

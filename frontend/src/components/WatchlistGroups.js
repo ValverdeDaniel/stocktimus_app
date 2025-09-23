@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import WatchlistAssignGroupsModal from './WatchlistAssignGroupsModal';
 import WatchlistContractCard from './WatchlistContractCard';
 import apiClient, {
-  simulateGroupContracts, // ✅ Only used for running group simulations
+  refreshGroupContracts,
+  getJobStatus,
 } from '../services/api';
 
 function WatchlistGroups({
@@ -18,6 +19,8 @@ function WatchlistGroups({
   const [assignModalVisible, setAssignModalVisible] = useState(false);
   const [contractsForAssignment, setContractsForAssignment] = useState([]);
   const [collapsedGroups, setCollapsedGroups] = useState({});
+  const [refreshingGroups, setRefreshingGroups] = useState({});
+  const [refreshJobs, setRefreshJobs] = useState({});
 
   // --- Toggle Collapse ---
   const toggleCollapse = (groupId) => {
@@ -95,6 +98,82 @@ function WatchlistGroups({
     console.groupEnd();
   };
 
+  // --- Poll Job Status ---
+  const pollJobStatus = async (jobId, groupId) => {
+    try {
+      const response = await getJobStatus(jobId);
+      const job = response.data;
+
+      setRefreshJobs(prev => ({
+        ...prev,
+        [groupId]: job
+      }));
+
+      if (job.status === 'completed') {
+        setRefreshingGroups(prev => ({
+          ...prev,
+          [groupId]: false
+        }));
+
+        // Show completion message
+        const message = `✅ Refresh completed: ${job.successful_contracts} contracts updated`;
+        if (job.failed_contracts > 0) {
+          alert(`${message}, ${job.failed_contracts} failed.`);
+        } else {
+          alert(message);
+        }
+
+        // Refresh the groups data
+        await fetchGroups();
+
+      } else if (job.status === 'failed') {
+        setRefreshingGroups(prev => ({
+          ...prev,
+          [groupId]: false
+        }));
+        alert(`❌ Refresh failed: ${job.error_message || 'Unknown error'}`);
+
+      } else {
+        // Still running, poll again after 2 seconds
+        setTimeout(() => pollJobStatus(jobId, groupId), 2000);
+      }
+    } catch (err) {
+      console.error(`Error polling job status:`, err);
+      setRefreshingGroups(prev => ({
+        ...prev,
+        [groupId]: false
+      }));
+    }
+  };
+
+  // --- Refresh Group Contracts ---
+  const handleRefreshGroup = async (groupId) => {
+    console.group(`🔄 Refresh Group - Group ID: ${groupId}`);
+    try {
+      setRefreshingGroups(prev => ({
+        ...prev,
+        [groupId]: true
+      }));
+
+      const response = await refreshGroupContracts(groupId);
+      const { job_id, message } = response.data;
+
+      console.log(`✅ Started refresh job: ${message}`);
+
+      // Start polling for job status
+      pollJobStatus(job_id, groupId);
+
+    } catch (err) {
+      console.error(`❌ Error starting group refresh for group ID ${groupId}:`, err);
+      setRefreshingGroups(prev => ({
+        ...prev,
+        [groupId]: false
+      }));
+      alert("Failed to start group refresh.");
+    }
+    console.groupEnd();
+  };
+
   return (
     <div className="mt-8">
       <h3 className="heading-lg">📂 Watchlist Groups</h3>
@@ -107,6 +186,9 @@ function WatchlistGroups({
           console.log('Collapsed State:', isCollapsed);
           console.log('Contracts Count:', group.contracts.length);
           console.groupEnd();
+
+          const isRefreshing = refreshingGroups[group.id];
+          const refreshJob = refreshJobs[group.id];
 
           return (
             <div key={group.id} className="card card-hover">
@@ -121,13 +203,45 @@ function WatchlistGroups({
                   {group.name}
                 </button>
 
-                <button
-                  onClick={() => handleRunGroup(group.id)}
-                  className="btn-primary text-xs"
-                >
-                  Run Group
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleRefreshGroup(group.id)}
+                    disabled={isRefreshing || group.contracts.length === 0}
+                    className={`btn-primary text-xs ${
+                      isRefreshing || group.contracts.length === 0
+                        ? 'opacity-50 cursor-not-allowed'
+                        : ''
+                    }`}
+                  >
+                    {isRefreshing ? '🔄 Refreshing...' : 'Refresh Data'}
+                  </button>
+                  <button
+                    onClick={() => handleRunGroup(group.id)}
+                    disabled={isRefreshing}
+                    className={`btn-primary text-xs ${
+                      isRefreshing ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    Run Group
+                  </button>
+                </div>
               </div>
+
+              {/* Progress indicator */}
+              {isRefreshing && refreshJob && (
+                <div className="mb-2 p-2 bg-blue-900/30 rounded border border-blue-500/30">
+                  <div className="text-xs text-blue-300">
+                    Refreshing {refreshJob.processed_contracts || 0} of {refreshJob.total_contracts || 0} contracts
+                    {refreshJob.progress_percentage ? ` (${refreshJob.progress_percentage}%)` : ''}
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2 mt-1">
+                    <div
+                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${refreshJob.progress_percentage || 0}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
 
               {!isCollapsed && (
                 <>

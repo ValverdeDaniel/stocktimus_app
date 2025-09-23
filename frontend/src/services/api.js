@@ -158,6 +158,18 @@ export const simulateGroupContracts = (groupId) => {
   return apiClient.post(`/watchlist-groups/${groupId}/simulate/`);
 };
 
+// --- Refresh Watchlist Group ---
+export const refreshGroupContracts = (groupId) => {
+  DEBUG_API && console.log(`🔄 [API] Refreshing group ID: ${groupId}`);
+  return apiClient.post(`/watchlist-groups/${groupId}/refresh/`);
+};
+
+// --- Job Status Tracking ---
+export const getJobStatus = (jobId) => {
+  DEBUG_API && console.log(`📊 [API] Getting job status for ID: ${jobId}`);
+  return apiClient.get(`/jobs/${jobId}/`);
+};
+
 // --- Bulk Watchlist Simulation ---
 export const runBulkWatchlist = (data) => {
   DEBUG_API && console.log('🧪 [API] Running bulk watchlist simulation:', data);

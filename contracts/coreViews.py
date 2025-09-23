@@ -12,6 +12,8 @@ import math
 from rest_framework import serializers
 # ✅ ADDED: This import is required for date calculations
 from datetime import datetime
+import threading
+import time
 
 from .models import (
     OptionContract,
@@ -21,6 +23,7 @@ from .models import (
     SavedContract,
     WatchlistGroup,
     Ticker,
+    RefreshJob,
 )
 
 from .serializers import (
@@ -31,6 +34,7 @@ from .serializers import (
     SavedContractSerializer,
     WatchlistGroupSerializer,
     TickerSerializer,
+    RefreshJobSerializer,
 )
 
 from .utils.options_analysis import run_multiple_analyses
@@ -601,3 +605,150 @@ def remove_contract_from_group(request, group_id, contract_id):
 
     group.contracts.remove(contract)
     return Response({'message': f'Contract {contract_id} removed from group {group.name}.'}, status=status.HTTP_200_OK)
+
+
+def refresh_single_contract(contract, job=None):
+    """
+    Refresh a single contract's data and update job progress if provided.
+    Returns True if successful, False if failed.
+    """
+    try:
+        simulation_input = [{
+            "ticker": contract.ticker,
+            "option_type": contract.option_type,
+            "strike": contract.strike,
+            "expiration": contract.expiration.isoformat(),
+            "days_to_gain": contract.dynamic_days_to_gain(),
+            "number_of_contracts": contract.number_of_contracts,
+            "average_cost_per_contract": contract.average_cost_per_contract,
+        }]
+
+        result_df = whole_watchlist(simulation_input)
+        if not result_df.empty:
+            result = result_df.iloc[0]
+
+            # Extract current values using correct field names
+            current_premium = result.get("Current Premium", 0)
+            current_underlying = result.get("Current Underlying", 0)
+
+            # Update current values
+            if current_premium and not math.isnan(current_premium):
+                contract.current_premium = current_premium
+            if current_underlying and not math.isnan(current_underlying):
+                contract.current_underlying_price = current_underlying
+
+            # Recalculate current equity
+            if contract.current_premium:
+                contract.current_equity = contract.number_of_contracts * contract.current_premium
+
+            contract.last_refresh_date = timezone.now()
+            contract.save()
+
+        return True
+    except Exception as e:
+        print(f"Error refreshing contract {contract.id}: {str(e)}")
+        return False
+
+
+def refresh_group_contracts_async(job_id):
+    """
+    Background task to refresh all contracts in a group.
+    Updates job progress as contracts are processed.
+    """
+    try:
+        job = RefreshJob.objects.get(id=job_id)
+        job.status = 'running'
+        job.save()
+
+        contracts = job.group.contracts.filter(user=job.user)
+        job.total_contracts = contracts.count()
+        job.save()
+
+        successful_count = 0
+        failed_count = 0
+
+        for i, contract in enumerate(contracts):
+            success = refresh_single_contract(contract, job)
+
+            if success:
+                successful_count += 1
+            else:
+                failed_count += 1
+
+            # Update job progress
+            job.processed_contracts = i + 1
+            job.successful_contracts = successful_count
+            job.failed_contracts = failed_count
+            job.save()
+
+            # Add small delay to avoid overwhelming the API
+            time.sleep(0.5)
+
+        # Mark job as completed
+        job.status = 'completed'
+        job.save()
+
+    except Exception as e:
+        try:
+            job = RefreshJob.objects.get(id=job_id)
+            job.status = 'failed'
+            job.error_message = str(e)
+            job.save()
+        except:
+            pass
+
+
+@api_view(['POST'])
+def refresh_group_contracts(request, group_id):
+    """
+    Start async refresh of all contracts in a group.
+    Returns job_id for progress tracking.
+    """
+    try:
+        group = WatchlistGroup.objects.get(pk=group_id, user=request.user)
+        contracts = group.contracts.filter(user=request.user)
+
+        if not contracts.exists():
+            return Response({'error': 'No contracts in this group.'}, status=400)
+
+        # Create job record
+        job = RefreshJob.objects.create(
+            user=request.user,
+            group=group,
+            job_type='group_refresh',
+            total_contracts=contracts.count()
+        )
+
+        # Start background refresh
+        thread = threading.Thread(target=refresh_group_contracts_async, args=(job.id,))
+        thread.daemon = True
+        thread.start()
+
+        serializer = RefreshJobSerializer(job)
+        return Response({
+            'job_id': job.id,
+            'message': f'Started refresh for {contracts.count()} contracts',
+            'job': serializer.data
+        }, status=200)
+
+    except WatchlistGroup.DoesNotExist:
+        return Response({'error': 'Group not found'}, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return Response({'error': str(e)}, status=500)
+
+
+class RefreshJobStatusAPIView(APIView):
+    """
+    Get status of a refresh job by job_id.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, job_id):
+        try:
+            job = RefreshJob.objects.get(id=job_id, user=request.user)
+            serializer = RefreshJobSerializer(job)
+            return Response(serializer.data, status=200)
+        except RefreshJob.DoesNotExist:
+            return Response({'error': 'Job not found'}, status=404)

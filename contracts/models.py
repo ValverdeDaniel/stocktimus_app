@@ -131,3 +131,33 @@ class Ticker(models.Model):
 
     def __str__(self):
         return f"{self.code} — {self.name}"
+
+
+class RefreshJob(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('running', 'Running'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    job_type = models.CharField(max_length=20, default='group_refresh')
+    group = models.ForeignKey(WatchlistGroup, on_delete=models.CASCADE, null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    total_contracts = models.IntegerField(default=0)
+    processed_contracts = models.IntegerField(default=0)
+    successful_contracts = models.IntegerField(default=0)
+    failed_contracts = models.IntegerField(default=0)
+    error_message = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"RefreshJob {self.id} - {self.status}"
+
+    @property
+    def progress_percentage(self):
+        if self.total_contracts == 0:
+            return 0
+        return int((self.processed_contracts / self.total_contracts) * 100)

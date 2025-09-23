@@ -20,6 +20,8 @@ from .coreViews import (
     RunBulkWatchlistAPIView,
     TickerSearchAPIView,
     SimulateGroupContractsAPIView,  # <-- Added this import
+    refresh_group_contracts,
+    RefreshJobStatusAPIView,
 )
 from .views.optionSearch import option_chain
 
@@ -44,7 +46,11 @@ urlpatterns = [
     path('watchlist-groups/<int:pk>/', WatchlistGroupUpdateDeleteAPIView.as_view(), name='watchlist-group-detail'),
     path('watchlist-groups/<int:group_id>/assign-contracts/', assign_contracts_to_group, name='assign-contracts-to-group'),
     path('watchlist-groups/<int:group_id>/simulate/', SimulateGroupContractsAPIView.as_view(), name='simulate-group-contracts'),  # <-- New endpoint
+    path('watchlist-groups/<int:group_id>/refresh/', refresh_group_contracts, name='refresh-group-contracts'),
     path('watchlist-groups/<int:group_id>/contracts/<int:contract_id>/', remove_contract_from_group, name='remove-contract-from-group'),
+
+    # --- Job Status Tracking ---
+    path('jobs/<int:job_id>/', RefreshJobStatusAPIView.as_view(), name='refresh-job-status'),
 
     # --- Ticker & Option Chain Search ---
     path('ticker-search/', TickerSearchAPIView.as_view(), name='ticker-search'),

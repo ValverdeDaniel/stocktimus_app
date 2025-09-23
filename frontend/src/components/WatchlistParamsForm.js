@@ -3,7 +3,7 @@ import WatchlistAssignGroupsModal from './WatchlistAssignGroupsModal';
 import SearchableTicker from './SearchableTicker';
 import apiClient from '../services/api'; // ✅ Import the Axios client
 
-function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, onSimulationComplete }) {
+function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, onSimulationStart, onSimulationComplete }) {
   const [contracts, setContracts] = useState([
     {
       ticker: 'GOOG',
@@ -86,11 +86,17 @@ function WatchlistParamsForm({ groups = [], fetchGroups, fetchSavedContracts, on
   const handleRunSimulator = async () => {
     try {
       console.log('▶ Running watchlist simulator with contracts:', contracts);
+
+      // Start loading state with contract count
+      if (onSimulationStart) {
+        onSimulationStart(contracts.length);
+      }
+
       const results = await runSimulatorAndGetResults(contracts);
       console.log('🎯 Simulation Results:', results);
       onSimulationComplete(results);
       console.log('📊 Watchlist Table updated with simulation results.');
-      alert('Watchlist simulation run successfully!');
+      // Removed success alert - silent success with auto-scroll
     } catch (error) {
       console.error('❌ Error running simulator:', error);
       alert('Failed to run simulator.');

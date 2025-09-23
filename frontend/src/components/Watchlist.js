@@ -3,6 +3,7 @@ import WatchlistParamsForm from './WatchlistParamsForm';
 import WatchlistTable from './WatchlistTable';
 import WatchlistFilterControls from './WatchlistFilterControls';
 import WatchlistGroups from './WatchlistGroups';
+import LoadingOverlay from './LoadingOverlay';
 import {
   getSavedContracts,
   getWatchlistGroups,
@@ -17,6 +18,8 @@ function Watchlist() {
   const [selectedTickers, setSelectedTickers] = useState([]);
   const [selectedContracts, setSelectedContracts] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simulationProgress, setSimulationProgress] = useState({ current: 0, total: 0 });
 
   // For debug/missing-column checks
   const EXPECTED_COLUMNS = [
@@ -157,6 +160,56 @@ function Watchlist() {
     }
   };
 
+  // --- Scroll to Results ---
+  const scrollToResults = () => {
+    setTimeout(() => {
+      const tableElement = document.querySelector('[data-watchlist-table]');
+      if (tableElement) {
+        tableElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+          inline: 'nearest'
+        });
+      }
+    }, 100); // Small delay to ensure DOM has updated
+  };
+
+  // --- Handle Simulation Start ---
+  const handleSimulationStart = (contractCount) => {
+    setIsSimulating(true);
+    setSimulationProgress({ current: 0, total: contractCount });
+
+    // Simulate progress during the API call
+    let currentProgress = 0;
+    const progressInterval = setInterval(() => {
+      if (currentProgress < contractCount) {
+        currentProgress++;
+        setSimulationProgress(prev => ({ ...prev, current: currentProgress }));
+      } else {
+        clearInterval(progressInterval);
+      }
+    }, 1000); // Update every second
+
+    // Store interval ID to clear it if needed
+    window.simulationProgressInterval = progressInterval;
+  };
+
+  // --- Handle Simulation Complete ---
+  const handleSimulationComplete = (results) => {
+    // Clear any running progress interval
+    if (window.simulationProgressInterval) {
+      clearInterval(window.simulationProgressInterval);
+      window.simulationProgressInterval = null;
+    }
+
+    console.log('✅ Simulation Results:', results);
+    console.log('🔍 Bypassing normalization for ad-hoc simulator—using raw data');
+    setWatchlistItems(results);
+    setIsSimulating(false);
+    setSimulationProgress({ current: 0, total: 0 });
+    scrollToResults();
+  };
+
   return (
     <div className="p-4 text-text">
       <h2 className="heading-xl">📈 Watchlist Tool</h2>
@@ -165,12 +218,8 @@ function Watchlist() {
         groups={groups}
         fetchGroups={fetchGroups}
         fetchSavedContracts={fetchSavedContracts}
-        // onSimulationComplete now bypasses normalization so you see every column
-        onSimulationComplete={(results) => {
-          console.log('✅ Simulation Results:', results);
-          console.log('🔍 Bypassing normalization for ad-hoc simulator—using raw data');
-          setWatchlistItems(results);
-        }}
+        onSimulationStart={handleSimulationStart}
+        onSimulationComplete={handleSimulationComplete}
       />
 
       <WatchlistGroups
@@ -197,13 +246,22 @@ function Watchlist() {
         }}
       />
 
-      <WatchlistFilterControls
-        data={watchlistItems}
-        selectedTickers={selectedTickers}
-        setSelectedTickers={setSelectedTickers}
-      />
+      <div data-watchlist-table>
+        <WatchlistFilterControls
+          data={watchlistItems}
+          selectedTickers={selectedTickers}
+          setSelectedTickers={setSelectedTickers}
+        />
 
-      <WatchlistTable items={watchlistItems} selectedTickers={selectedTickers} />
+        <WatchlistTable items={watchlistItems} selectedTickers={selectedTickers} />
+      </div>
+
+      <LoadingOverlay
+        isVisible={isSimulating}
+        currentProgress={simulationProgress.current}
+        totalProgress={simulationProgress.total}
+        message="Running Watchlist Simulation"
+      />
     </div>
   );
 }

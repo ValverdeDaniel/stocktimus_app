@@ -115,13 +115,11 @@ function WatchlistGroups({
           [groupId]: false
         }));
 
-        // Show completion message
-        const message = `✅ Refresh completed: ${job.successful_contracts} contracts updated`;
+        // Only show alerts for partial failures
         if (job.failed_contracts > 0) {
-          alert(`${message}, ${job.failed_contracts} failed.`);
-        } else {
-          alert(message);
+          alert(`❌ Refresh completed: ${job.successful_contracts} contracts updated, ${job.failed_contracts} failed.`);
         }
+        // Silent success - no alert for fully successful refreshes
 
         // Refresh the groups data
         await fetchGroups();

@@ -46,9 +46,13 @@ def analyze_stocks(request):
     """
     start_time = time.time()
 
+    # Debug logging
+    logger.info(f"Raw request data: {request.data}")
+
     # Validate request
     request_serializer = AnalysisRequestSerializer(data=request.data)
     if not request_serializer.is_valid():
+        logger.warning(f"Validation failed: {request_serializer.errors}")
         return Response({
             'error': 'Invalid request data',
             'details': request_serializer.errors

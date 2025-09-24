@@ -24,23 +24,27 @@ function TickerInputSection({ onAnalysisSubmit, watchedStocks, onAddToWatchlist,
     if (type === 'checkbox') {
       if (name === 'analysis_types') {
         setFormData(prev => {
+          // Ensure prev.analysis_types is always an array
+          const currentTypes = Array.isArray(prev.analysis_types) ? prev.analysis_types : [];
           let newTypes;
+
           if (checked) {
             // Add the analysis type if it's not already in the array (prevent duplicates)
-            newTypes = prev.analysis_types.includes(value)
-              ? prev.analysis_types
-              : [...prev.analysis_types, value];
+            newTypes = currentTypes.includes(value) ? currentTypes : [...currentTypes, value];
           } else {
             // Remove the analysis type
-            newTypes = prev.analysis_types.filter(type => type !== value);
+            newTypes = currentTypes.filter(type => type !== value);
           }
+
           console.log(`Analysis types updated: ${newTypes}`);
           return { ...prev, analysis_types: newTypes };
         });
       } else {
+        // Handle other checkboxes (like save_results)
         setFormData(prev => ({ ...prev, [name]: checked }));
       }
     } else {
+      // Handle text inputs and other non-checkbox fields
       setFormData(prev => ({ ...prev, [name]: value }));
 
       // Handle ticker suggestions
@@ -89,7 +93,9 @@ function TickerInputSection({ onAnalysisSubmit, watchedStocks, onAddToWatchlist,
       return;
     }
 
-    if (formData.analysis_types.length === 0) {
+    // Ensure analysis_types is an array and not empty
+    const analysisTypes = Array.isArray(formData.analysis_types) ? formData.analysis_types : [];
+    if (analysisTypes.length === 0) {
       alert('Please select at least one analysis type');
       return;
     }
@@ -100,12 +106,12 @@ function TickerInputSection({ onAnalysisSubmit, watchedStocks, onAddToWatchlist,
       .map(t => t.trim().toUpperCase())
       .filter(t => t);
 
-    // Ensure session_name is a string, even if empty
+    // Ensure all field types are correct
     const analysisRequest = {
       tickers,
-      analysis_types: formData.analysis_types,
-      session_name: formData.session_name || '',
-      save_results: formData.save_results
+      analysis_types: analysisTypes,
+      session_name: Array.isArray(formData.session_name) ? formData.session_name[0] || '' : (formData.session_name || ''),
+      save_results: Boolean(formData.save_results)
     };
 
     console.log('Form data being submitted:', analysisRequest);
@@ -295,7 +301,7 @@ function TickerInputSection({ onAnalysisSubmit, watchedStocks, onAddToWatchlist,
         <div className="pt-4">
           <button
             type="submit"
-            disabled={processing || !formData.tickers.trim() || formData.analysis_types.length === 0}
+            disabled={processing || !formData.tickers.trim() || !Array.isArray(formData.analysis_types) || formData.analysis_types.length === 0}
             className="w-full md:w-auto px-8 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {processing ? (

@@ -48,6 +48,7 @@ class AnalysisRequestSerializer(serializers.Serializer):
     analysis_types = serializers.ListField(
         child=serializers.ChoiceField(choices=['fundamentals', 'eps_trends']),
         default=['fundamentals'],
+        allow_empty=False,
         help_text="Types of analysis to perform"
     )
     session_name = serializers.CharField(

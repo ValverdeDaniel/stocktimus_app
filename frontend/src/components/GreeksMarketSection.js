@@ -1,43 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import ExpandableSection from './ExpandableSection';
-import apiClient from '../services/api';
 
-function GreeksMarketSection({ contract }) {
-  const [simulationData, setSimulationData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  const fetchSimulationData = async () => {
-    if (simulationData || loading) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const contractData = {
-        ticker: contract.ticker,
-        option_type: contract.option_type,
-        strike: contract.strike,
-        expiration: contract.expiration,
-        days_to_gain: contract.dynamic_days_to_gain,
-        number_of_contracts: contract.number_of_contracts,
-        average_cost_per_contract: contract.average_cost_per_contract,
-      };
-
-      const response = await apiClient.post('/run-watchlist/', { contracts: [contractData] });
-
-      if (response.data && response.data.length > 0) {
-        setSimulationData(response.data[0]);
-      } else {
-        setError('No market data returned');
-      }
-    } catch (err) {
-      console.error('Error fetching market data:', err);
-      setError('Failed to load market data');
-    } finally {
-      setLoading(false);
-    }
-  };
+function GreeksMarketSection({ contract, simulationData, loading, error }) {
 
   const formatGreek = (value) => {
     if (value == null || value === 'NA' || isNaN(value)) return 'NA';
@@ -73,12 +37,6 @@ function GreeksMarketSection({ contract }) {
       return (
         <div className="py-2">
           <p className="text-red-400 text-sm">{error}</p>
-          <button
-            onClick={fetchSimulationData}
-            className="mt-1 text-xs text-blue-400 hover:text-blue-300 underline"
-          >
-            Retry
-          </button>
         </div>
       );
     }
@@ -154,7 +112,7 @@ function GreeksMarketSection({ contract }) {
     <ExpandableSection
       title="🎯 Greeks & Market Data"
       icon="▶"
-      onExpand={fetchSimulationData}
+      defaultExpanded={true}
     >
       {renderContent()}
     </ExpandableSection>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import SinceBeingTrackedSection from './SinceBeingTrackedSection';
 import SimulationScenariosSection from './SimulationScenariosSection';
 import GreeksMarketSection from './GreeksMarketSection';
+import apiClient from '../services/api';
 
 export default function WatchlistContractCard({
   contract,
@@ -13,6 +14,12 @@ export default function WatchlistContractCard({
   onDelete,
 }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [expansionLevel, setExpansionLevel] = useState(0); // 0=collapsed, 1=summary, 2=full
+
+  // Shared API state for market data
+  const [marketData, setMarketData] = useState(null);
+  const [marketDataLoading, setMarketDataLoading] = useState(false);
+  const [marketDataError, setMarketDataError] = useState(null);
 
   // --- Formatters ---
   const formatCurrency = (n) => (n != null ? `$${Number(n).toFixed(2)}` : '--');
@@ -24,6 +31,39 @@ export default function WatchlistContractCard({
     return `${symbol} ${Math.abs(change).toFixed(1)}%`;
   };
   const formatDate = (date) => (date ? new Date(date).toISOString().slice(0, 10) : '--');
+
+  // Shared market data fetcher
+  const fetchMarketData = async () => {
+    if (marketData || marketDataLoading) return;
+
+    setMarketDataLoading(true);
+    setMarketDataError(null);
+
+    try {
+      const contractData = {
+        ticker: contract.ticker,
+        option_type: contract.option_type,
+        strike: contract.strike,
+        expiration: contract.expiration,
+        days_to_gain: contract.dynamic_days_to_gain,
+        number_of_contracts: contract.number_of_contracts,
+        average_cost_per_contract: contract.average_cost_per_contract,
+      };
+
+      const response = await apiClient.post('/run-watchlist/', { contracts: [contractData] });
+
+      if (response.data && response.data.length > 0) {
+        setMarketData(response.data);
+      } else {
+        setMarketDataError('No market data returned');
+      }
+    } catch (err) {
+      console.error('Error fetching market data:', err);
+      setMarketDataError('Failed to load market data');
+    } finally {
+      setMarketDataLoading(false);
+    }
+  };
 
   const {
     id,
@@ -102,11 +142,171 @@ export default function WatchlistContractCard({
     setConfirmingDelete(false);
   };
 
+  // Expansion level handlers
+  const handleToggleExpansion = () => {
+    if (expansionLevel === 0) {
+      setExpansionLevel(1); // Collapsed → Summary
+    } else if (expansionLevel === 1) {
+      setExpansionLevel(0); // Summary → Collapsed
+    } else {
+      setExpansionLevel(1); // Full → Summary
+    }
+  };
+
+  const handleFullAnalysis = async () => {
+    setExpansionLevel(2); // Summary → Full
+    await fetchMarketData(); // Fetch fresh data for full analysis
+  };
+
+  // Get best and worst case scenarios for Level 1 preview
+  const getScenarioPreview = () => {
+    if (!marketData || !marketData.length) return null;
+
+    // Find current, best (+200%), and worst (-90%) scenarios
+    const current = marketData.find(row => row['Underlying Scenario % Change'] === '±5%');
+    const best = marketData.find(row => row['Underlying Scenario % Change'] === '±200%');
+    const worst = marketData.find(row => row['Underlying Scenario % Change'] === '±90%');
+
+    return { current, best, worst };
+  };
+
+  // Render different levels based on expansion state
+  const renderLevel0 = () => (
+    <div className="flex items-center justify-between py-2 px-3 hover:bg-gray-800/30 cursor-pointer" onClick={handleToggleExpansion}>
+      <div className="flex items-center gap-3">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={handleSelectChange}
+          onClick={(e) => e.stopPropagation()}
+          className="flex-shrink-0"
+        />
+        <div className="font-medium text-sm">
+          🟢 {ticker} {option_type?.toUpperCase()} @ ${formatNumber(strike)} — 📆 {expiration}
+        </div>
+      </div>
+      <div className="flex items-center gap-4 text-xs text-gray-300">
+        <span>Premium: {formatCurrency(current_premium)} ({premium_percent_change >= 0 ? '+' : ''}{premium_percent_change?.toFixed(1)}%)</span>
+        <span>Days: {dynamic_days_to_gain || '--'} left</span>
+        <span>Equity: {formatCurrency(current_equity)} ({equity_percent_change >= 0 ? '+' : ''}{equity_percent_change?.toFixed(1)}%)</span>
+        <span className="text-blue-400">▶</span>
+      </div>
+    </div>
+  );
+
+  const renderLevel1 = () => {
+    const scenarioPreview = getScenarioPreview();
+    return (
+      <div className="space-y-3">
+        {/* Header - clickable to collapse */}
+        <div className="flex items-center justify-between py-2 px-3 hover:bg-gray-800/30 cursor-pointer" onClick={handleToggleExpansion}>
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={handleSelectChange}
+              onClick={(e) => e.stopPropagation()}
+              className="flex-shrink-0"
+            />
+            <div className="font-medium text-sm">
+              🟢 {ticker} {option_type?.toUpperCase()} @ ${formatNumber(strike)} — 📆 {expiration}
+            </div>
+          </div>
+          <span className="text-blue-400 text-xs">▼</span>
+        </div>
+
+        {/* Summary content */}
+        <div className="px-3 space-y-2">
+          <SinceBeingTrackedSection contract={contract} />
+
+          {/* Quick scenario preview */}
+          {scenarioPreview && (
+            <div className="bg-gray-800/50 rounded p-2 text-xs">
+              <div className="font-semibold text-gray-300 mb-1 text-[11px]">📊 Quick Scenarios</div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <div className="text-blue-400 text-[10px]">Current</div>
+                  <div className="text-white text-[10px]">{formatCurrency(scenarioPreview.current?.['Current Premium'])}</div>
+                </div>
+                <div>
+                  <div className="text-green-400 text-[10px]">Best (+200%)</div>
+                  <div className="text-white text-[10px]">{formatCurrency(scenarioPreview.best?.['Simulated Premium (+)'])}</div>
+                </div>
+                <div>
+                  <div className="text-red-400 text-[10px]">Worst (-90%)</div>
+                  <div className="text-white text-[10px]">{formatCurrency(scenarioPreview.worst?.['Simulated Premium (-)'])}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Full Analysis button */}
+          <div className="flex justify-center">
+            <button onClick={handleFullAnalysis} className="btn-blue text-xs px-3 py-1">
+              Full Analysis
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderLevel2 = () => (
+    <div className="space-y-3">
+      {/* Header - clickable to collapse to Level 1 */}
+      <div className="flex items-center justify-between py-2 px-3 hover:bg-gray-800/30 cursor-pointer" onClick={handleToggleExpansion}>
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={handleSelectChange}
+            onClick={(e) => e.stopPropagation()}
+            className="flex-shrink-0"
+          />
+          <div className="font-medium text-sm">
+            🟢 {ticker} {option_type?.toUpperCase()} @ ${formatNumber(strike)} — 📆 {expiration}
+          </div>
+        </div>
+        <span className="text-blue-400 text-xs">▲</span>
+      </div>
+
+      {/* Full detail content */}
+      <div className="px-3 space-y-2">
+        <SinceBeingTrackedSection contract={contract} />
+        <SimulationScenariosSection
+          contract={contract}
+          simulationData={marketData}
+          loading={marketDataLoading}
+          error={marketDataError}
+        />
+        <GreeksMarketSection
+          contract={contract}
+          simulationData={marketData?.[0]}
+          loading={marketDataLoading}
+          error={marketDataError}
+        />
+
+        {/* Action Buttons */}
+        <div className="flex gap-2 mt-3 flex-wrap">
+          <button onClick={handleReset} className="btn-green text-xs px-3 py-1">
+            Reset Countdown
+          </button>
+          <button onClick={handleRefresh} className="btn-dark text-xs px-3 py-1">
+            Refresh Data
+          </button>
+          <button onClick={handleUpdateGroups} className="btn-green text-xs px-3 py-1">
+            Update Groups
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="card-dark flex gap-2 relative">
-      {/* ✅ Delete Button (Top Right) */}
+    <div className="card-dark relative">
+      {/* Delete Button (Top Right) */}
       <div
-        className="absolute top-2 right-3 text-xs text-red-500 hover:underline cursor-pointer"
+        className="absolute top-2 right-3 text-xs text-red-500 hover:underline cursor-pointer z-10"
         onClick={() => {
           console.log(`⚠ Showing delete confirmation modal for Contract ID: ${id}`);
           setConfirmingDelete(true);
@@ -115,40 +315,10 @@ export default function WatchlistContractCard({
         Remove
       </div>
 
-      {/* Checkbox */}
-      <input
-        type="checkbox"
-        checked={isSelected}
-        onChange={handleSelectChange}
-        className="mt-2"
-      />
-
-      <div className="flex-grow space-y-1 text-sm">
-        {/* Header */}
-        <div className="font-semibold text-base mb-3">
-          🟢 {ticker} {option_type?.toUpperCase()} @ ${formatNumber(strike)} — 📆 {expiration}
-        </div>
-
-        {/* Expandable Sections */}
-        <div className="space-y-1 mb-4">
-          <SinceBeingTrackedSection contract={contract} />
-          <SimulationScenariosSection contract={contract} />
-          <GreeksMarketSection contract={contract} />
-        </div>
-
-        {/* Buttons */}
-        <div className="flex gap-2 mt-2 flex-wrap">
-          <button onClick={handleReset} className="btn-green">
-            Reset Countdown
-          </button>
-          <button onClick={handleRefresh} className="btn-dark">
-            Refresh Data
-          </button>
-          <button onClick={handleUpdateGroups} className="btn-green">
-            Update Groups
-          </button>
-        </div>
-      </div>
+      {/* Render appropriate level */}
+      {expansionLevel === 0 && renderLevel0()}
+      {expansionLevel === 1 && renderLevel1()}
+      {expansionLevel === 2 && renderLevel2()}
 
       {/* ✅ Confirm Delete Modal */}
       {confirmingDelete && (

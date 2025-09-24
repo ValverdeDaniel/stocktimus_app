@@ -1,44 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import ExpandableSection from './ExpandableSection';
-import apiClient from '../services/api';
 
-function SimulationScenariosSection({ contract }) {
-  const [simulationData, setSimulationData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  const fetchSimulationData = async () => {
-    if (simulationData || loading) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const contractData = {
-        ticker: contract.ticker,
-        option_type: contract.option_type,
-        strike: contract.strike,
-        expiration: contract.expiration,
-        days_to_gain: contract.dynamic_days_to_gain,
-        number_of_contracts: contract.number_of_contracts,
-        average_cost_per_contract: contract.average_cost_per_contract,
-      };
-
-      const response = await apiClient.post('/run-watchlist/', { contracts: [contractData] });
-
-      if (response.data && response.data.length > 0) {
-        // The backend returns multiple rows (one per scenario)
-        setSimulationData(response.data);
-      } else {
-        setError('No simulation data returned');
-      }
-    } catch (err) {
-      console.error('Error fetching simulation data:', err);
-      setError('Failed to load simulation data');
-    } finally {
-      setLoading(false);
-    }
-  };
+function SimulationScenariosSection({ contract, simulationData, loading, error }) {
 
   const formatCurrency = (value) => {
     if (value == null || isNaN(value)) return '--';
@@ -67,12 +30,6 @@ function SimulationScenariosSection({ contract }) {
       return (
         <div className="py-2">
           <p className="text-red-400 text-sm">{error}</p>
-          <button
-            onClick={fetchSimulationData}
-            className="mt-1 text-xs text-blue-400 hover:text-blue-300 underline"
-          >
-            Retry
-          </button>
         </div>
       );
     }
@@ -179,7 +136,7 @@ function SimulationScenariosSection({ contract }) {
     <ExpandableSection
       title={`📈 Simulation Scenarios (${simulationData ? simulationData.length * 2 + 1 : '?'})`}
       icon="▶"
-      onExpand={fetchSimulationData}
+      defaultExpanded={true}
     >
       {renderContent()}
     </ExpandableSection>

@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import SinceBeingTrackedSection from './SinceBeingTrackedSection';
+import SimulationScenariosSection from './SimulationScenariosSection';
+import GreeksMarketSection from './GreeksMarketSection';
 
 export default function WatchlistContractCard({
   contract,
@@ -122,41 +125,16 @@ export default function WatchlistContractCard({
 
       <div className="flex-grow space-y-1 text-sm">
         {/* Header */}
-        <div className="font-semibold text-base">
+        <div className="font-semibold text-base mb-3">
           🟢 {ticker} {option_type?.toUpperCase()} @ ${formatNumber(strike)} — 📆 {expiration}
         </div>
 
-        {/* Premium */}
-        <div>
-          💵 Premium: {formatCurrency(initial_premium)} → {formatCurrency(current_premium)}{' '}
-          {premium_percent_change && premium_percent_change !== 0 ? `${premium_percent_change >= 0 ? '↑' : '↓'} ${Math.abs(premium_percent_change).toFixed(1)}%` : '--'}
+        {/* Expandable Sections */}
+        <div className="space-y-1 mb-4">
+          <SinceBeingTrackedSection contract={contract} />
+          <SimulationScenariosSection contract={contract} />
+          <GreeksMarketSection contract={contract} />
         </div>
-
-        {/* Underlying */}
-        <div>
-          📈 Underlying: {formatCurrency(underlying_price_at_add)} → {formatCurrency(current_underlying_price)}{' '}
-          {underlying_percent_change && underlying_percent_change !== 0 ? `${underlying_percent_change >= 0 ? '↑' : '↓'} ${Math.abs(underlying_percent_change).toFixed(1)}%` : '--'}
-        </div>
-
-        {/* Contracts */}
-        <div>💰 Contracts: {number_of_contracts}</div>
-
-        {/* Equity */}
-        <div>
-           Equity: {formatCurrency(initial_equity)} → {formatCurrency(current_equity)}{' '}
-          {equity_percent_change && equity_percent_change !== 0 ? `${equity_percent_change >= 0 ? '↑' : '↓'} ${Math.abs(equity_percent_change).toFixed(1)}%` : '--'}
-        </div>
-
-        {/* Days */}
-        <div>
-          ⏳ Days: {initial_days_to_gain ?? '--'} goal | {dynamic_days_to_gain ?? '--'} left
-        </div>
-
-        {/* Dates */}
-        <div>
-          📅 Added: {formatDate(first_added_to_group_date)} | Goal Reset: {formatDate(last_reset_date)}
-        </div>
-        <div>🔁 Data Refreshed: {formatDate(last_refresh_date)}</div>
 
         {/* Buttons */}
         <div className="flex gap-2 mt-2 flex-wrap">

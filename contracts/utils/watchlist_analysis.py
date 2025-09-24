@@ -118,7 +118,7 @@ def simulate_option_watchlist_single(
         total_cost = average_cost_per_contract * number_of_contracts * 100
 
         # --- Scenario Simulation ---
-        scenarios = [0.05, 0.10, 0.20, 0.50, 1.0, 2.0]
+        scenarios = [0.05, 0.10, 0.20, 0.50, 0.90, 1.0, 2.0]
         rows = []
 
         for pct in scenarios:

@@ -4,7 +4,9 @@
       "Bash(docker-compose exec:*)",
       "Bash(curl:*)",
       "Bash(docker-compose restart:*)",
-      "Bash(docker-compose logs:*)"
+      "Bash(docker-compose logs:*)",
+      "Bash(npm start)",
+      "Bash(docker-compose up:*)"
     ],
     "deny": [],
     "ask": []

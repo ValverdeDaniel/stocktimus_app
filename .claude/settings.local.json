@@ -6,7 +6,9 @@
       "Bash(docker-compose restart:*)",
       "Bash(docker-compose logs:*)",
       "Bash(npm start)",
-      "Bash(docker-compose up:*)"
+      "Bash(docker-compose up:*)",
+      "Read(//c/Users/fooba/OneDrive/desktop/devprojects/stocktimus_dev/Version1/Prod/**)",
+      "Bash(docker-compose:*)"
     ],
     "deny": [],
     "ask": []

@@ -19,10 +19,13 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    
+
     # ✅ Routes contract-related API calls to the 'contracts' app
     path('api/', include('contracts.urls')),
-    
+
     # ✅ Routes authentication-related API calls to the 'users' app
     path('api/auth/', include('users.urls')),
+
+    # ✅ Routes stock analysis API calls to the 'stock_analyzer' app
+    path('api/stock-analyzer/', include('stock_analyzer.urls')),
 ]

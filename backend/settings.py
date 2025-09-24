@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     'corsheaders',                 # For CORS (local frontend dev)
     'contracts',                   # Your custom app
     'users',                       # Your custom app
+    'stock_analyzer',              # Stock analysis app
 ]
 
 MIDDLEWARE = [

@@ -6,6 +6,7 @@ import './styles/ui.css';
 import Navbar from './components/Navbar';
 import ScreenerResults from './components/ScreenerResults';
 import Watchlist from './components/Watchlist';
+import StockAnalyzerDashboard from './components/StockAnalyzer/StockAnalyzerDashboard';
 import LoginForm from './components/LoginForm';
 import SignupForm from './components/SignupForm';
 import { logout } from './services/api';
@@ -48,6 +49,11 @@ function App() {
             <Route path="/watchlist" element={
               <RequireAuth>
                 <Watchlist />
+              </RequireAuth>
+            } />
+            <Route path="/stock-analyzer" element={
+              <RequireAuth>
+                <StockAnalyzerDashboard />
               </RequireAuth>
             } />
           </Routes>

@@ -35,6 +35,15 @@ function Navbar() {
           Watchlist
         </Link>
 
+        <Link
+          to="/stock-analyzer"
+          className={`text-text hover:text-primary transition ${
+            location.pathname === '/stock-analyzer' ? 'text-primary' : ''
+          }`}
+        >
+          Stock Analyzer
+        </Link>
+
         {!isAuthenticated ? (
           <Link
             to="/login"

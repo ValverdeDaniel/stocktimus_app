@@ -28,10 +28,6 @@ services:
   backend:
     build: . # Tells Docker to look for a Dockerfile in the 'stocktimus' folder
     container_name: stocktimus_backend
-    # Command to run the Django development server
-    command: >
-        sh -c "python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8000"
     volumes:
       # Mounts your local code into the container for instant changes
       - .:/app
@@ -39,6 +35,7 @@ services:
       - "8000:8000"
     environment:
       # Tells Django how to connect to the database
+      - ENVIRONMENT=local
       - DB_NAME=options_db
       - DB_USER=options_user
       - DB_PASSWORD=secret123
@@ -54,8 +51,15 @@ services:
 
   # 3. Node.js Frontend Service (Placeholder)
   frontend:
-    build: ./frontend # Assumes you will have a 'frontend' folder with a Dockerfile
+    build: 
+      context: ./frontend # Assumes you will have a 'frontend' folder with a Dockerfile
+      args:
+        - ENVIRONMENT=local
+        - REACT_APP_API_URL=http://backend:8000
     container_name: stocktimus_frontend
+    environment:
+      - ENVIRONMENT=local
+      - REACT_APP_API_URL=http://backend:8000
     volumes:
       - ./frontend:/app
       - /app/node_modules # Prevents local node_modules from overwriting container's

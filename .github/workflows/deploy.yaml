@@ -1,0 +1,95 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PROJECT_ID: stocktimus
+  REGION: us-east1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Enable APIs
+        run: |
+          gcloud services enable \
+            cloudbuild.googleapis.com \
+            run.googleapis.com \
+            sqladmin.googleapis.com \
+            secretmanager.googleapis.com
+
+      - name: Get Cloud SQL credentials
+        id: cloudsql
+        run: |
+          echo "DB_CONNECTION_NAME=${{ secrets.DB_CONNECTION_NAME }}" >> $GITHUB_ENV
+          echo "DB_NAME=${{ secrets.DB_NAME }}" >> $GITHUB_ENV
+          echo "DB_USER=${{ secrets.DB_USER }}" >> $GITHUB_ENV
+          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> $GITHUB_ENV
+
+      - name: Build and Deploy Backend
+        run: |
+          gcloud builds submit \
+            --tag gcr.io/${{ env.PROJECT_ID }}/stocktimus-backend \
+            --dockerfile Dockerfile \
+            .
+
+          gcloud run deploy stocktimus-backend \
+            --image gcr.io/${{ env.PROJECT_ID }}/stocktimus-backend \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --allow-unauthenticated \
+            --set-env-vars "DB_NAME=${{ env.DB_NAME }}" \
+            --set-env-vars "DB_USER=${{ env.DB_USER }}" \
+            --set-env-vars "DB_PASSWORD=${{ env.DB_PASSWORD }}" \
+            --set-env-vars "DB_CONNECTION_NAME=${{ env.DB_CONNECTION_NAME }}" \
+            --set-env-vars "ENVIRONMENT=production" \
+            --add-cloudsql-instances ${{ env.DB_CONNECTION_NAME }}
+
+      - name: Get Backend URL
+        id: backend-url
+        run: |
+          BACKEND_URL=$(gcloud run services describe stocktimus-backend \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)')
+          echo "BACKEND_URL=$BACKEND_URL" >> $GITHUB_ENV
+
+      - name: Build and Deploy Frontend
+        run: |
+          gcloud builds submit \
+            --tag gcr.io/${{ env.PROJECT_ID }}/stocktimus-frontend \
+            --dockerfile frontend/Dockerfile \
+            --build-arg ENVIRONMENT=production \
+            --build-arg REACT_APP_API_URL=${{ env.BACKEND_URL }} \
+            frontend
+
+          gcloud run deploy stocktimus-frontend \
+            --image gcr.io/${{ env.PROJECT_ID }}/stocktimus-frontend \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --allow-unauthenticated \
+            --set-env-vars "ENVIRONMENT=production" \
+            --set-env-vars "REACT_APP_API_URL=${{ env.BACKEND_URL }}"
